@@ -630,7 +630,9 @@ function saveCostMap() {
   try { localStorage.setItem('anan_cost_map', JSON.stringify(S.costMap)); } catch(e) {}
 }
 function setCostForSku(sku, val) {
-  const cost = parseFloat(String(val).replace(/[^0-9.]/g,'')) || 0;
+  // Xử lý định dạng VN: "45.000" → 45000, "45.000,5" → 45000.5
+  const cleaned = String(val).trim().replace(/\./g,'').replace(',','.');
+  const cost = parseFloat(cleaned.replace(/[^0-9.]/g,'')) || 0;
   if (cost > 0) S.costMap[sku] = cost;
   else delete S.costMap[sku];
   saveCostMap();
@@ -738,10 +740,10 @@ function renderModalTable() {
       <td class="prod-name">${p.name}</td>
       <td style="text-align:right;padding-right:10px">
         <input class="cost-input" type="text" inputmode="numeric"
-          value="${cost > 0 ? cost.toLocaleString('vi') : ''}"
+          value="${cost > 0 ? cost : ''}"
           placeholder="0"
           title="Nhập giá vốn (VNĐ)"
-          onchange="setCostForSku('${p.sku}', this.value.replace(/[^0-9.]/g,''))"
+          onchange="setCostForSku('${p.sku}', this.value)"
           onclick="this.select()"/>
       </td>
       <td>
@@ -1955,6 +1957,7 @@ async function syncNotesFromSheet() {
       return {...recompute(merged, S.targetDays), cat: S.catMap[p.sku]||p.cat||'KHAC', avg_source: merged.avg_source};
     });
     renderAll(); renderSurplus();
+    renderModalTable(); // Cập nhật ô giá vốn trong modal
   }
   const infoEl = document.getElementById('modal-save-info');
   if (infoEl) infoEl.textContent = `✓ Đã kéo ${noteCount} ghi chú + ${catCount} phân loại + ${costCount} giá vốn từ Sheet`;
