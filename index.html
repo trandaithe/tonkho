@@ -7,9 +7,9 @@
 <title>Dự Báo Tồn Kho</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;overflow:hidden}
-body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;font-size:13px}
-.header{background:#1a1a1a;color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:200}
+html{height:100%;overflow:hidden}
+body{height:100%;overflow:hidden;display:flex;flex-direction:column;font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;font-size:13px}
+.header{background:#1a1a1a;color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;flex-shrink:0;z-index:200}
 .header-left h1{font-size:17px;font-weight:600;letter-spacing:-.3px}
 .header-left p{font-size:11px;color:#aaa;margin-top:2px}
 .header-right{display:flex;gap:8px;align-items:center}
@@ -76,9 +76,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .badge-count{display:inline-block;background:#1a1a1a;color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px}
 
 /* ── MAIN LAYOUT ── */
-.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px 20px;position:sticky;z-index:190;background:#f0efeb}
-#tabs-bar{position:sticky;z-index:195}
-#filter-bar{position:sticky;z-index:185;background:#f0efeb;padding:8px 20px 4px}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px 20px;background:#f0efeb;flex-shrink:0}
+#tabs-bar{flex-shrink:0}
+#filter-bar{background:#f0efeb;padding:8px 20px 4px;flex-shrink:0}
 .kpi{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e0;position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .kpi-total::before{background:#1a1a1a}.kpi-alert::before{background:#dc2626}
@@ -88,7 +88,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .kpi-value{font-size:24px;font-weight:700;color:#1a1a1a}
 .kpi-alert .kpi-value{color:#dc2626}
 .kpi-sub{font-size:10px;color:#aaa;margin-top:3px}
-.main-layout{display:flex;gap:0;padding:0 20px 0;overflow:hidden;align-items:stretch}
+.main-layout{display:flex;gap:0;padding:0 20px;overflow:hidden;align-items:stretch;flex:1;min-height:0}
 .left-panel{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column}
 .right-panel{width:320px;flex-shrink:0;overflow-y:auto;padding-left:12px}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
@@ -787,11 +787,6 @@ function init() {
     return { ...recompute(merged, S.targetDays), cat: S.catMap[p.sku] || p.cat || 'KHAC' };
   });
   renderAll();
-  // double rAF: đảm bảo DOM đã paint xong trước khi đo chiều cao
-  requestAnimationFrame(() => requestAnimationFrame(() => {
-    updateStickyOffset();
-    window.addEventListener('resize', updateStickyOffset, { passive: true });
-  }));
 }
 
 function mergeSalesAvg(p) {
@@ -1243,15 +1238,11 @@ function switchTab(tab) {
   document.querySelector('.main-layout').style.display = isForecast ? '' : 'none';
   const surplusTab = document.getElementById('surplus-tab');
   surplusTab.style.display = isForecast ? 'none' : 'block';
-  if (!isForecast) {
-    // Cho surplus tab cuộn nội dung riêng (body overflow:hidden)
-    const hH = document.querySelector('.header')?.offsetHeight || 60;
-    const tH = document.getElementById('tabs-bar')?.offsetHeight || 41;
-    surplusTab.style.height = (window.innerHeight - hH - tH) + 'px';
-    surplusTab.style.overflowY = 'auto';
-    renderSurplus(); setTimeout(loadSurplusColWidths, 50);
-  }
-  requestAnimationFrame(updateStickyOffset);
+  // body là flex column → surplus-tab cần flex:1 để điền đầy phần còn lại
+  surplusTab.style.flex = isForecast ? '' : '1';
+  surplusTab.style.minHeight = isForecast ? '' : '0';
+  surplusTab.style.overflowY = isForecast ? '' : 'auto';
+  if (!isForecast) { renderSurplus(); setTimeout(loadSurplusColWidths, 50); }
 }
 
 // ── SURPLUS STATE ─────────────────────────────────────────────────────────────
@@ -2017,26 +2008,7 @@ async function initNotesHeader() {
 function renderAll(){renderKPI();renderTable();renderAlerts();}
 
 function updateStickyOffset(){
-  const header     = document.querySelector('.header');
-  const tabsBar    = document.getElementById('tabs-bar');
-  const kpiRow     = document.getElementById('kpi-row');
-  const filterBar  = document.getElementById('filter-bar');
-  const mainLayout = document.querySelector('.main-layout');
-
-  const headerH = header?.offsetHeight    || 60;
-  const tabsH   = tabsBar?.offsetHeight   || 41;
-  const kpiH    = kpiRow?.offsetHeight    || 90;
-  const filterH = filterBar?.offsetHeight || 96;
-
-  // Gán top cho từng vùng sticky
-  if (tabsBar)   tabsBar.style.top   = headerH + 'px';
-  if (kpiRow)    kpiRow.style.top    = (headerH + tabsH) + 'px';
-  if (filterBar) filterBar.style.top = (headerH + tabsH + kpiH) + 'px';
-
-  // Khoá chiều cao main-layout = phần còn lại → html/body overflow:hidden ngăn page scroll
-  const remaining = window.innerHeight - headerH - tabsH - kpiH - filterH;
-  if (mainLayout) mainLayout.style.height = remaining + 'px';
-  // .left-panel height:100% + .table-container flex:1 + min-height:0 tự điền đầy
+  // Không cần nữa — CSS body flex-column tự phân bổ chiều cao
 }
 
 // Override doSync to use OAuth fetch
