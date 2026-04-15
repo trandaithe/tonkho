@@ -164,7 +164,8 @@ tbody td{padding:9px 10px;vertical-align:middle;overflow:hidden}
 .page-btn:hover{background:#f0efeb}
 .page-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 .empty-row td{text-align:center;padding:30px;color:#bbb;font-size:12px}
-thead th{position:sticky;top:0;z-index:100;overflow:visible;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+thead th{position:relative;z-index:100;overflow:visible}
+#js-fixed-thead{position:fixed;z-index:500;display:none;overflow:hidden;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.3)}
 .resize-handle{
   position:absolute;right:-3px;top:0;bottom:0;width:10px;
   cursor:col-resize;z-index:20;user-select:none;
@@ -787,6 +788,7 @@ function init() {
     return { ...recompute(merged, S.targetDays), cat: S.catMap[p.sku] || p.cat || 'KHAC' };
   });
   renderAll();
+  requestAnimationFrame(setupFixedHeader);
 }
 
 function mergeSalesAvg(p) {
@@ -1581,6 +1583,8 @@ function onResizeEnd() {
   _resizeState = null;
   document.removeEventListener('mousemove', onResizeMove);
   document.removeEventListener('mouseup', onResizeEnd);
+  // Đồng bộ chiều rộng cột vào fixed header clone
+  if(window._syncFixedHeader) window._syncFixedHeader();
 }
 
 function loadColWidths() {
@@ -2007,9 +2011,51 @@ async function initNotesHeader() {
 
 function renderAll(){renderKPI();renderTable();renderAlerts();}
 
-function updateStickyOffset(){
-  // Không cần nữa — CSS body flex-column tự phân bổ chiều cao
+// ── FIXED HEADER CLONE (100% reliable, works regardless of CSS overflow) ────────
+function setupFixedHeader(){
+  document.getElementById('js-fixed-thead')?.remove();
+  const container = document.querySelector('.table-container');
+  const table     = container?.querySelector('table');
+  const thead     = table?.querySelector('thead');
+  if(!thead || !container) return;
+
+  const fixed = document.createElement('div');
+  fixed.id = 'js-fixed-thead';
+
+  const ft = document.createElement('table');
+  ft.style.cssText = 'width:100%;border-collapse:collapse;table-layout:fixed;font-size:12px;';
+  const cg = table.querySelector('colgroup');
+  if(cg) ft.appendChild(cg.cloneNode(true));
+  ft.appendChild(thead.cloneNode(true)); // clone giữ nguyên onclick sort
+  fixed.appendChild(ft);
+  document.body.appendChild(fixed);
+
+  function sync(){
+    const cRect = container.getBoundingClientRect();
+    const tRect = thead.getBoundingClientRect();
+    if(tRect.bottom < cRect.top + 2){
+      // thead đã cuộn ra ngoài tầm nhìn → hiện clone cố định
+      fixed.style.display  = 'block';
+      fixed.style.top      = cRect.top  + 'px';
+      fixed.style.left     = cRect.left + 'px';
+      fixed.style.width    = cRect.width + 'px';
+      // Đồng bộ chính xác chiều rộng từng cột
+      const realThs  = thead.querySelectorAll('th');
+      fixed.querySelectorAll('th').forEach((th,i)=>{
+        if(realThs[i]) th.style.width = realThs[i].getBoundingClientRect().width + 'px';
+      });
+    } else {
+      fixed.style.display = 'none';
+    }
+  }
+
+  container.addEventListener('scroll', sync, {passive:true});
+  window.addEventListener('resize',    sync, {passive:true});
+  sync();
+  window._syncFixedHeader = sync; // dùng lại khi resize cột
 }
+
+function updateStickyOffset(){}
 
 // Override doSync to use OAuth fetch
 async function doSync() {
