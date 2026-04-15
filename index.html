@@ -75,11 +75,12 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .badge-count{display:inline-block;background:#1a1a1a;color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px}
 
 /* ── MAIN LAYOUT ── */
-.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;padding:14px 20px}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px 20px}
 .kpi{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e0;position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .kpi-total::before{background:#1a1a1a}.kpi-alert::before{background:#dc2626}
 .kpi-anan::before{background:#2563eb}.kpi-ht::before{background:#16a34a}.kpi-other::before{background:#9ca3af}
+.kpi-value-inv::before{background:#7c3aed}
 .kpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
 .kpi-value{font-size:24px;font-weight:700;color:#1a1a1a}
 .kpi-alert .kpi-value{color:#dc2626}
@@ -184,6 +185,10 @@ thead th{position:relative;overflow:visible}
   width:3px;height:75%;
   box-shadow:none;
 }
+.cost-input{width:96px;border:1px solid #d0d0c8;border-radius:5px;padding:4px 8px;font-size:12px;text-align:right;font-family:monospace;outline:none;background:#fff}
+.cost-input:focus{border-color:#1a1a1a;box-shadow:0 0 0 2px rgba(26,26,26,.08)}
+.value-cell{text-align:right;font-family:monospace;font-weight:600;color:#1a1a1a;white-space:nowrap;padding-right:12px}
+.value-na{text-align:right;color:#bbb;font-size:11px;white-space:nowrap;padding-right:12px}
 table{table-layout:fixed;width:100%}
 .tab-btn{padding:12px 20px;border:none;background:transparent;font-size:13px;font-weight:500;color:#888;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
 .tab-btn:hover{color:#1a1a1a}
@@ -352,7 +357,7 @@ table{table-layout:fixed;width:100%}
     </div>
     <div class="modal-body">
       <table class="cat-table">
-        <thead><tr><th style="width:100px">Mã SKU</th><th>Tên sản phẩm</th><th style="width:240px;text-align:center">Phân loại</th></tr></thead>
+        <thead><tr><th style="width:100px">Mã SKU</th><th>Tên sản phẩm</th><th style="width:130px;text-align:right">Giá vốn (đ)</th><th style="width:240px;text-align:center">Phân loại</th></tr></thead>
         <tbody id="modal-tbody"></tbody>
       </table>
     </div>
@@ -404,11 +409,12 @@ table{table-layout:fixed;width:100%}
     <div class="table-container">
       <table><colgroup>
   <col id="col-sku" style="width:95px;min-width:70px">
-  <col id="col-name" style="width:260px;min-width:120px">
+  <col id="col-name" style="width:240px;min-width:120px">
   <col id="col-wh" style="width:90px;min-width:60px">
   <col id="col-avg" style="width:72px;min-width:55px">
   <col id="col-stock" style="width:80px;min-width:60px">
   <col id="col-days" style="width:78px;min-width:55px">
+  <col id="col-value" style="width:95px;min-width:70px">
   <col id="col-need" style="width:85px;min-width:60px">
 </colgroup>
         <thead><tr>
@@ -418,6 +424,7 @@ table{table-layout:fixed;width:100%}
           <th onclick="sortBy('total_avg')" style="text-align:center">Bán TB ↕<span class="resize-handle" onmousedown="startResize(event,'col-avg')"></span></th>
           <th onclick="sortBy('total_stock')" style="text-align:center">Tồn kho ↕<span class="resize-handle" onmousedown="startResize(event,'col-stock')"></span></th>
           <th onclick="sortBy('total_days')" style="text-align:center">Ngày còn ↕<span class="resize-handle" onmousedown="startResize(event,'col-days')"></span></th>
+          <th onclick="sortBy('inv_value')" style="text-align:right">Giá trị tồn ↕<span class="resize-handle" onmousedown="startResize(event,'col-value')"></span></th>
           <th onclick="sortBy('total_needed')">Cần nhập ↕</th>
         </tr></thead>
         <tbody id="product-tbody"></tbody>
@@ -596,7 +603,7 @@ const S = {
   cat:'ALL', wh:'ALL', status:'ALL', search:'',
   sortKey:'total_needed', sortDir:-1,
   selectedSku:null, targetDays:45, page:1, pageSize:30,
-  data:[], catMap:{}, modalFilter:'ALL', kmSet:null
+  data:[], catMap:{}, costMap:{}, modalFilter:'ALL', kmSet:null
 };
 
 // ── CATEGORY MAP (localStorage) ──────────────────────────────────────────────
@@ -609,6 +616,35 @@ function loadCatMap() {
 }
 function saveCatMap() {
   try { localStorage.setItem('anan_cat_map', JSON.stringify(S.catMap)); } catch(e) {}
+}
+
+// ── COST MAP (giá vốn, localStorage) ─────────────────────────────────────────
+function loadCostMap() {
+  try {
+    const saved = localStorage.getItem('anan_cost_map');
+    if (saved) return JSON.parse(saved);
+  } catch(e) {}
+  return {};
+}
+function saveCostMap() {
+  try { localStorage.setItem('anan_cost_map', JSON.stringify(S.costMap)); } catch(e) {}
+}
+function setCostForSku(sku, val) {
+  const cost = parseFloat(String(val).replace(/[^0-9.]/g,'')) || 0;
+  if (cost > 0) S.costMap[sku] = cost;
+  else delete S.costMap[sku];
+  saveCostMap();
+  renderKPI(); renderTable();
+  const info = document.getElementById('modal-save-info');
+  if (info) info.textContent = 'Đã lưu giá vốn ✓ · ' + new Date().toLocaleTimeString('vi-VN');
+}
+function getCost(sku) { return S.costMap && S.costMap[sku] ? S.costMap[sku] : 0; }
+function fmtVND(v) {
+  if (!v) return '';
+  if (v >= 1e9) return (v/1e9).toFixed(1).replace(/\.0$/,'') + ' tỷ';
+  if (v >= 1e6) return (v/1e6).toFixed(1).replace(/\.0$/,'') + ' tr';
+  if (v >= 1e3) return Math.round(v/1e3) + 'k';
+  return v.toLocaleString('vi');
 }
 
 // ── KM (Khuyến mại) flag — dùng biến động tồn kho thay vì báo cáo doanh số ──
@@ -694,10 +730,20 @@ function getModalFiltered() {
 function renderModalTable() {
   const rows = getModalFiltered();
   const catLabel = {ANAN:'An An', HT:'Hệ thống', KHAC:'Khác'};
-  document.getElementById('modal-tbody').innerHTML = rows.map(p => `
+  document.getElementById('modal-tbody').innerHTML = rows.map(p => {
+    const cost = getCost(p.sku);
+    return `
     <tr>
       <td class="sku-mono">${p.sku}</td>
       <td class="prod-name">${p.name}</td>
+      <td style="text-align:right;padding-right:10px">
+        <input class="cost-input" type="text" inputmode="numeric"
+          value="${cost > 0 ? cost.toLocaleString('vi') : ''}"
+          placeholder="0"
+          title="Nhập giá vốn (VNĐ)"
+          onchange="setCostForSku('${p.sku}', this.value.replace(/[^0-9.]/g,''))"
+          onclick="this.select()"/>
+      </td>
       <td>
         <div style="display:flex;flex-direction:column;gap:4px">
           <div class="cat-btns" style="justify-content:center">
@@ -712,7 +758,8 @@ function renderModalTable() {
           </div>
         </div>
       </td>
-    </tr>`).join('');
+    </tr>`;
+  }).join('');
   document.getElementById('cat-badge').textContent = S.data.length;
 }
 // Close modal on overlay click
@@ -723,6 +770,7 @@ document.getElementById('cat-modal').addEventListener('click', function(e) {
 // ── INIT ──────────────────────────────────────────────────────────────────────
 function init() {
   S.catMap = loadCatMap();
+  S.costMap = loadCostMap();
   S.kmSet = loadKMSet();
   S.data = EMBEDDED_DATA.map(p => {
     const merged = mergeSalesAvg(p);
@@ -1011,6 +1059,7 @@ function getFiltered(){
     else if(S.sortKey==='total_stock'){av=va?.stock??0; bv=vb?.stock??0;}
     else if(S.sortKey==='total_avg'){av=va?.avg??0; bv=vb?.avg??0;}
     else if(S.sortKey==='total_days'){av=va?.days??null; bv=vb?.days??null;}
+    else if(S.sortKey==='inv_value'){av=getCost(a.sku)*(va?.stock??0); bv=getCost(b.sku)*(vb?.stock??0);}
     else{av=a[S.sortKey]; bv=b[S.sortKey];}
     if(av===null||av===undefined)av=S.sortDir>0?Infinity:-Infinity;
     if(bv===null||bv===undefined)bv=S.sortDir>0?Infinity:-Infinity;
@@ -1045,20 +1094,23 @@ function renderKPI(){
   const urgent=f.filter(p=>{const v=getWhView(p);return v&&v.needed>0;});
   const totalN=urgent.reduce((a,p)=>{const v=getWhView(p);return a+(v?.needed??0);},0);
   const totalStock=f.reduce((a,p)=>{const v=getWhView(p);return a+(v?.stock??0);},0);
+  const totalValue=f.reduce((a,p)=>{const v=getWhView(p);const c=getCost(p.sku);return a+(c&&v?.stock?c*v.stock:0);},0);
+  const valuedSkus=f.filter(p=>getCost(p.sku)>0).length;
   const whLabel=S.wh==='ALL'?'Tất cả kho':S.wh;
   document.getElementById('kpi-row').innerHTML=`
     <div class="kpi kpi-total"><div class="kpi-label">Tổng cần nhập (${S.targetDays}N)</div><div class="kpi-value">${totalN.toLocaleString('vi')}</div><div class="kpi-sub">${urgent.length} SKU · ${whLabel}</div></div>
     <div class="kpi kpi-alert"><div class="kpi-label">Cảnh báo thiếu hàng</div><div class="kpi-value">${urgent.filter(p=>{const v=getWhView(p);return v&&v.days!==null&&v.days<S.targetDays;}).length}</div><div class="kpi-sub">dưới ${S.targetDays} ngày tồn</div></div>
     <div class="kpi kpi-anan"><div class="kpi-label">Hàng An An</div><div class="kpi-value">${f.filter(p=>p.cat==='ANAN').length}</div><div class="kpi-sub">SKU An An</div></div>
     <div class="kpi kpi-ht"><div class="kpi-label">Hàng hệ thống</div><div class="kpi-value">${f.filter(p=>p.cat==='HT').length}</div><div class="kpi-sub">SKU hệ thống</div></div>
-    <div class="kpi kpi-other"><div class="kpi-label">Tồn ${whLabel}</div><div class="kpi-value">${totalStock.toLocaleString('vi')}</div><div class="kpi-sub">${f.length} SKU</div></div>`;
+    <div class="kpi kpi-other"><div class="kpi-label">Tồn ${whLabel}</div><div class="kpi-value">${totalStock.toLocaleString('vi')}</div><div class="kpi-sub">${f.length} SKU</div></div>
+    <div class="kpi kpi-value-inv" title="${totalValue.toLocaleString('vi')}đ"><div class="kpi-label">Giá trị tồn kho</div><div class="kpi-value" style="font-size:${totalValue>=1e9?'18px':totalValue>=1e6?'20px':'24px'}">${totalValue>0?fmtVND(totalValue):'—'}</div><div class="kpi-sub">${valuedSkus}/${f.length} SKU có giá vốn</div></div>`;
 }
 function renderTable(){
   const filtered=getFiltered(); const total=filtered.length,pages=Math.ceil(total/S.pageSize)||1;
   S.page=Math.min(S.page,pages);
   const rows=filtered.slice((S.page-1)*S.pageSize,S.page*S.pageSize);
   const tb=document.getElementById('product-tbody');
-  if(!rows.length){tb.innerHTML='<tr class="empty-row"><td colspan="7">Không tìm thấy sản phẩm</td></tr>';}
+  if(!rows.length){tb.innerHTML='<tr class="empty-row"><td colspan="8">Không tìm thấy sản phẩm</td></tr>';}
   else{
     tb.innerHTML=rows.map(p=>{
       const sel=S.selectedSku===p.sku?'selected':'';
@@ -1081,6 +1133,7 @@ function renderTable(){
         })()}</td>
         <td class="num-cell">${v.stock.toLocaleString('vi')}</td>
         <td class="num-cell">${daysHtml(v.days,S.targetDays)}</td>
+        ${(()=>{const cost=getCost(p.sku);const val=cost&&v.stock?cost*v.stock:0;return val>0?`<td class="value-cell" title="${(cost*v.stock).toLocaleString('vi')}đ (${v.stock.toLocaleString('vi')} × ${cost.toLocaleString('vi')}đ)">${fmtVND(val)}</td>`:`<td class="value-na">—</td>`})()}
         ${needTd}</tr>`;
     }).join('');
   }
@@ -1639,12 +1692,11 @@ function onTokenReceived(resp) {
     if(el) el.textContent = '✅ ' + name + ' (' + (info.email||'') + ')';
   }).catch(() => {});
   showStep('synced');
-  // Init sheet header + sync notes 2 chiều + sync data
+  // Khi đăng nhập: chỉ PULL từ Sheet về, không push (tránh xóa mất data)
   setTimeout(async () => {
     await initNotesHeader();
-    await pushAllNotesToSheet(); // đẩy local lên trước
-    await syncNotesFromSheet(); // rồi kéo từ sheet về (merge)
-    doSync();
+    await syncNotesFromSheet(); // kéo ghi chú + phân loại từ Sheet
+    doSync(); // load tồn kho với catMap/kmSet đã cập nhật
   }, 300);
 }
 
@@ -1777,11 +1829,12 @@ async function pushCatRowToSheet(sku) {
     const updated = note?.updated || '';
     const cat = S.catMap[sku] || '';
     const isKm = (S.kmSet && S.kmSet.has(sku)) ? 'TRUE' : '';
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent(`Ghi chú!A${rowIdx}:F${rowIdx}`)}?valueInputOption=RAW`;
+    const cost = getCost(sku) || '';
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent(`Ghi chú!A${rowIdx}:G${rowIdx}`)}?valueInputOption=RAW`;
     await fetch(url, {
       method: 'PUT',
       headers: { 'Authorization': 'Bearer '+_accessToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values: [[sku, noteText, status, updated, cat, isKm]] })
+      body: JSON.stringify({ values: [[sku, noteText, status, updated, cat, isKm, cost]] })
     });
   } catch(e) { console.warn('pushCatRowToSheet:', e.message); }
 }
@@ -1789,7 +1842,7 @@ async function pushCatRowToSheet(sku) {
 async function readNotesFromSheet() {
   if (!_accessToken || Date.now() >= _tokenExpiry) return { values: [] };
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A:F')}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A:G')}`;
     const res = await fetch(url, { headers: { 'Authorization': 'Bearer '+_accessToken } });
     if (!res.ok) return { values: [] };
     return await res.json();
@@ -1805,11 +1858,13 @@ async function pushAllNotesToSheet() {
   const catMap = S.catMap || loadCatMap();
   const kmSet = S.kmSet || loadKMSet();
 
-  // Tập hợp tất cả SKU có ghi chú HOẶC phân loại không mặc định HOẶC đánh dấu KM
+  const costMap = S.costMap || loadCostMap();
+  // Tập hợp tất cả SKU có ghi chú HOẶC phân loại không mặc định HOẶC đánh dấu KM HOẶC có giá vốn
   const allSkus = new Set([
     ...Object.keys(notes).filter(s => notes[s]?.text),
     ...Object.keys(catMap).filter(s => catMap[s] && catMap[s] !== 'KHAC'),
-    ...[...kmSet]
+    ...[...kmSet],
+    ...Object.keys(costMap).filter(s => costMap[s] > 0)
   ]);
 
   if (allSkus.size === 0) {
@@ -1817,38 +1872,47 @@ async function pushAllNotesToSheet() {
     return;
   }
   try {
-    const clearUrl = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A2:F2000')}:clear`;
-    const clearResp = await fetch(clearUrl, {
-      method: 'POST',
-      headers: { 'Authorization': 'Bearer '+_accessToken }
-    });
-    if (!clearResp.ok) {
-      const e = await clearResp.json();
-      throw new Error('Clear thất bại: ' + (e.error?.message || clearResp.status));
+    // Đọc sheet hiện tại để merge (không xóa mất data)
+    const existing = await readNotesFromSheet();
+    const existRows = existing.values || [];
+    const existMap = {}; // SKU -> rowIndex (1-indexed, bỏ qua header)
+    for (let i = 1; i < existRows.length; i++) {
+      const s = existRows[i][0]||'';
+      if (s) existMap[s] = i + 1;
     }
-    const values = [...allSkus].map(sku => {
+    let nextRow = existRows.length + 1;
+
+    // Ghi từng SKU vào đúng hàng (cập nhật hàng cũ hoặc thêm hàng mới)
+    const requests = [];
+    for (const sku of allSkus) {
       const note = notes[sku];
       const noteText = note?.text || '';
       const status = noteText ? getNoteStatusFromText(noteText) : '';
       const updated = note?.updated || '';
       const cat = catMap[sku] || '';
       const isKm = kmSet.has(sku) ? 'TRUE' : '';
-      return [sku, noteText, status, updated, cat, isKm];
-    });
-    const writeUrl = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent(`Ghi chú!A2:F${values.length + 1}`)}?valueInputOption=RAW`;
-    const writeResp = await fetch(writeUrl, {
+      const cost = costMap[sku] || '';
+      const rowIdx = existMap[sku] || nextRow;
+      if (!existMap[sku]) { existMap[sku] = nextRow; nextRow++; }
+      requests.push({
+        range: `Ghi chú!A${rowIdx}:G${rowIdx}`,
+        values: [[sku, noteText, status, updated, cat, isKm, cost]]
+      });
+    }
+    const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values:batchUpdate`;
+    const writeResp = await fetch(batchUrl, {
       method: 'PUT',
       headers: { 'Authorization': 'Bearer '+_accessToken, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ values })
+      body: JSON.stringify({ valueInputOption: 'RAW', data: requests })
     });
     if (!writeResp.ok) {
       const e = await writeResp.json();
       throw new Error('Ghi thất bại: ' + (e.error?.message || writeResp.status));
     }
     const noteCount = [...allSkus].filter(s => notes[s]?.text).length;
-    const catCount = allSkus.size - noteCount;
-    document.getElementById('modal-save-info').textContent = `✓ Đã đẩy ${noteCount} ghi chú + ${allSkus.size} phân loại lên Sheet`;
-    alert(`✓ Đã đẩy thành công:\n- ${noteCount} ghi chú\n- ${allSkus.size} SKU có phân loại/KM`);
+    const costCount = [...allSkus].filter(s => costMap[s] > 0).length;
+    document.getElementById('modal-save-info').textContent = `✓ Đã đẩy ${noteCount} ghi chú + ${allSkus.size} phân loại + ${costCount} giá vốn lên Sheet`;
+    alert(`✓ Đã đẩy thành công:\n- ${noteCount} ghi chú\n- ${allSkus.size} SKU có phân loại/KM\n- ${costCount} SKU có giá vốn`);
   } catch(e) {
     console.error('pushAllNotesToSheet:', e.message);
     alert('Lỗi khi đẩy dữ liệu: ' + e.message);
@@ -1862,29 +1926,38 @@ async function syncNotesFromSheet() {
   if (rows.length <= 1) return;
   const notes = loadNotes();
   if (!S.kmSet) S.kmSet = loadKMSet();
-  let noteCount = 0, catCount = 0;
+  if (!S.costMap) S.costMap = loadCostMap();
+  let noteCount = 0, catCount = 0, costCount = 0;
   for (let i = 1; i < rows.length; i++) {
     const sku   = rows[i][0]||'';
     const text  = rows[i][1]||'';
     const updated = rows[i][3]||'';
     const cat   = rows[i][4]||'';
     const isKm  = (rows[i][5]||'').toUpperCase() === 'TRUE';
+    const cost  = parseFloat(rows[i][6]||'') || 0;
     if (!sku) continue;
     if (text) { notes[sku] = { text, updated }; noteCount++; }
     if (cat)  { S.catMap[sku] = cat; catCount++; }
     if (isKm) S.kmSet.add(sku);
     else S.kmSet.delete(sku);
+    if (cost > 0) { S.costMap[sku] = cost; costCount++; }
+    else if (rows[i].length > 6) delete S.costMap[sku];
   }
   saveNotes(notes);
   saveCatMap();
   saveKMSet(S.kmSet);
-  // Recompute toàn bộ data với catMap + kmSet mới
-  S.data = S.data.map(p => {
-    const merged = mergeSalesAvg({...p, cat: S.catMap[p.sku]||p.cat||'KHAC'});
-    return {...recompute(merged, S.targetDays), cat: S.catMap[p.sku]||p.cat||'KHAC', avg_source: merged.avg_source};
-  });
-  renderAll(); renderSurplus();
-  document.getElementById('modal-save-info').textContent = `✓ Đã kéo ${noteCount} ghi chú + ${catCount} phân loại từ Sheet`;
+  saveCostMap();
+  // Nếu S.data đã có (sync sau khi doSync chạy xong) thì recompute luôn
+  if (S.data && S.data.length > 0) {
+    S.data = S.data.map(p => {
+      const base = {...p, cat: S.catMap[p.sku]||p.cat||'KHAC'};
+      const merged = mergeSalesAvg(base);
+      return {...recompute(merged, S.targetDays), cat: S.catMap[p.sku]||p.cat||'KHAC', avg_source: merged.avg_source};
+    });
+    renderAll(); renderSurplus();
+  }
+  const infoEl = document.getElementById('modal-save-info');
+  if (infoEl) infoEl.textContent = `✓ Đã kéo ${noteCount} ghi chú + ${catCount} phân loại + ${costCount} giá vốn từ Sheet`;
 }
 
 function getNoteStatusFromText(text) {
@@ -1903,12 +1976,13 @@ async function initNotesHeader() {
     const rows = data.values || [];
     const needsHeader = rows.length === 0 || (rows[0][0]||'').toLowerCase() !== 'sku';
     const needsCatCol = rows.length > 0 && (rows[0][4]||'') !== 'Phân loại';
-    if (needsHeader || needsCatCol) {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A1:F1')}?valueInputOption=RAW`;
+    const needsCostCol = rows.length > 0 && (rows[0][6]||'') !== 'Giá vốn';
+    if (needsHeader || needsCatCol || needsCostCol) {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A1:G1')}?valueInputOption=RAW`;
       await fetch(url, {
         method: 'PUT',
         headers: { 'Authorization': 'Bearer '+_accessToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [['SKU', 'Ghi chú', 'Trạng thái', 'Cập nhật lần cuối', 'Phân loại', 'isKM']] })
+        body: JSON.stringify({ values: [['SKU', 'Ghi chú', 'Trạng thái', 'Cập nhật lần cuối', 'Phân loại', 'isKM', 'Giá vốn']] })
       });
     }
   } catch(e) { console.warn('initNotesHeader:', e.message); }
@@ -2012,9 +2086,7 @@ async function doSync() {
 
   const built=Object.values(allP).map(p=>{
     const th = totalStockMap[p.sku];
-    // Ưu tiên dùng tổng từ Tổng hợp tồn nếu có
     const ts = th ? th.total : Object.values(p.warehouses).reduce((a,w)=>a+w.stock,0);
-    // Cập nhật stock từng kho nếu có
     if(th){
       ['AnAn','SMN','SMT','Upbase SMN'].forEach(wh=>{
         if(p.warehouses[wh]) p.warehouses[wh].stock = th[wh]||0;
@@ -2028,7 +2100,7 @@ async function doSync() {
 
   if(built.length>0){
     if(salesLoaded){ Object.assign(SALES_AVG,newSalesAvg); Object.assign(SALES_HIST,newSalesHist); }
-    S.data=built.map(p=>{const m=mergeSalesAvg(p);return {...recompute(m,S.targetDays),cat:S.catMap[p.sku]||p.cat||'KHAC'};});
+    S.data=built.map(p=>{const m=mergeSalesAvg(p);return {...recompute(m,S.targetDays),cat:S.catMap[p.sku]||p.cat||'KHAC', avg_source:m.avg_source};});
     const t=new Date().toLocaleString('vi-VN');
     const src=useOAuth?'🔐 OAuth':'🌐 Public';
     const whe=errorWhs.length>0?` · Lỗi: ${errorWhs.join(', ')}`:''
@@ -2041,17 +2113,17 @@ async function doSync() {
     if(!useOAuth && errorWhs.length===4){
       setStatus2('⚠ Chưa publish sheet. Nhấn "Kết nối Sheet" để đăng nhập Google.');
     } else {
-      setStatus2('⚠ Không tải được dữ liệu.');
+      setStatus2('⚠ Không tải được dữ liệu. Kiểm tra kết nối mạng.');
     }
-    document.getElementById('connect-bar').style.display='block';
+    if(detailEl) detailEl.textContent = errorWhs.length===4
+      ? '❌ Cả 4 kho đều lỗi — Sheet chưa được Xuất bản lên web'
+      : `❌ Lỗi kho: ${errorWhs.join(', ')}`;
   }
   btn.innerHTML='🔄 Đồng bộ Drive'; btn.disabled=false;
 }
 
+// ── BOOTSTRAP ────────────────────────────────────────────────────────────────
 init();
-// Init OAuth after GSI loads
-window.addEventListener('load', () => setTimeout(initOAuth, 300));
-loadColWidths();
 </script>
 </body>
 </html>
