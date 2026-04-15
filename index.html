@@ -1901,7 +1901,7 @@ async function pushAllNotesToSheet() {
     }
     const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values:batchUpdate`;
     const writeResp = await fetch(batchUrl, {
-      method: 'PUT',
+      method: 'POST',
       headers: { 'Authorization': 'Bearer '+_accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({ valueInputOption: 'RAW', data: requests })
     });
