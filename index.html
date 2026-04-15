@@ -88,9 +88,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .kpi-value{font-size:24px;font-weight:700;color:#1a1a1a}
 .kpi-alert .kpi-value{color:#dc2626}
 .kpi-sub{font-size:10px;color:#aaa;margin-top:3px}
-.main-layout{display:grid;grid-template-columns:1fr 320px;gap:0;padding:0 20px 0;overflow:hidden}
-.left-panel{height:100%;overflow:hidden;display:flex;flex-direction:column}
-.right-panel{height:100%;overflow-y:auto;padding-left:12px}
+.main-layout{display:flex;gap:0;padding:0 20px 0;overflow:hidden;align-items:stretch}
+.left-panel{flex:1;min-width:0;overflow:hidden;display:flex;flex-direction:column}
+.right-panel{width:320px;flex-shrink:0;overflow-y:auto;padding-left:12px}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
 .filter-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
 .filter-group{display:flex;gap:4px;flex-wrap:wrap}
