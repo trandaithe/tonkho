@@ -96,7 +96,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .fbtn.active-green{background:#16a34a;color:#fff;border-color:#16a34a}
 .search-wrap{flex:1;min-width:180px}
 .search-wrap input{width:100%;border:1px solid #d0d0c8;border-radius:20px;padding:5px 14px;font-size:12px;background:#fff;outline:none}
-.table-container{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow:hidden}
+.table-container{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow-y:auto;overflow-x:hidden;max-height:calc(100vh - 330px);min-height:220px}
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 table{user-select:none}
 thead{background:#1a1a1a}
@@ -159,7 +159,7 @@ tbody td{padding:9px 10px;vertical-align:middle;overflow:hidden}
 .page-btn:hover{background:#f0efeb}
 .page-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 .empty-row td{text-align:center;padding:30px;color:#bbb;font-size:12px}
-thead th{position:relative;overflow:visible}
+thead th{position:sticky;top:0;z-index:10;overflow:visible}
 .resize-handle{
   position:absolute;right:-3px;top:0;bottom:0;width:10px;
   cursor:col-resize;z-index:20;user-select:none;
@@ -201,8 +201,9 @@ table{table-layout:fixed;width:100%}
 .surplus-count-red{background:#fee2e2;color:#dc2626}
 .surplus-count-amber{background:#fef3c7;color:#d97706}
 .surplus-count-gray{background:#f3f4f6;color:#6b7280}
+.surplus-tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:480px}
 .surplus-table{width:100%;border-collapse:collapse;font-size:12px}
-.surplus-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;background:#fafafa;border-bottom:1px solid #f0efeb;cursor:pointer;user-select:none;white-space:nowrap;position:relative;overflow:visible}
+.surplus-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;background:#fafafa;border-bottom:1px solid #f0efeb;cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;z-index:5;overflow:visible}
 .surplus-table th:hover{color:#1a1a1a}
 .surplus-table td{padding:9px 12px;border-bottom:1px solid #f7f7f4;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .surplus-table tr:last-child td{border-bottom:none}
@@ -485,7 +486,7 @@ table{table-layout:fixed;width:100%}
       <span class="surplus-section-title">📦 Tồn kho vượt định mức — có doanh số nhưng tồn quá lâu</span>
       <span class="surplus-count surplus-count-red" id="s1-count">0 sản phẩm</span>
     </div>
-    <div style="overflow-x:auto">
+    <div class="surplus-tbl-wrap">
       <table class="surplus-table" id="surplus-table-1" style="table-layout:fixed;width:100%">
         <colgroup>
           <col id="s1-col-sku"    style="width:100px;min-width:70px">
@@ -520,7 +521,7 @@ table{table-layout:fixed;width:100%}
       <span class="surplus-section-title">🚫 Không có doanh số — tồn kho không có chuyển động</span>
       <span class="surplus-count surplus-count-gray" id="s2-count">0 sản phẩm</span>
     </div>
-    <div style="overflow-x:auto">
+    <div class="surplus-tbl-wrap">
       <table class="surplus-table" id="surplus-table-2" style="table-layout:fixed;width:100%">
         <colgroup>
           <col id="s2-col-sku"     style="width:100px;min-width:70px">
