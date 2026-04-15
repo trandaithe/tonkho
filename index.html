@@ -87,7 +87,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .kpi-value{font-size:24px;font-weight:700;color:#1a1a1a}
 .kpi-alert .kpi-value{color:#dc2626}
 .kpi-sub{font-size:10px;color:#aaa;margin-top:3px}
-.main-layout{display:grid;grid-template-columns:1fr 320px;gap:0;padding:0 20px 20px}
+.main-layout{display:grid;grid-template-columns:1fr 320px;gap:0;padding:0 20px 0;overflow:hidden}
+.left-panel{height:100%;overflow:hidden;display:flex;flex-direction:column}
+.right-panel{height:100%;overflow-y:auto;padding-left:12px}
 .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
 .filter-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap}
 .filter-group{display:flex;gap:4px;flex-wrap:wrap}
@@ -118,7 +120,7 @@ tbody td{padding:9px 10px;vertical-align:middle;overflow:hidden}
 .need-ok{text-align:right;color:#aaa;font-size:11px;white-space:nowrap}
 .status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px}
 .dot-red{background:#dc2626}.dot-amber{background:#f59e0b}.dot-green{background:#22c55e}.dot-gray{background:#d1d5db}
-.right-panel{padding-left:12px;display:flex;flex-direction:column;gap:10px}
+.right-panel{display:flex;flex-direction:column;gap:10px}
 .panel{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow:hidden}
 .panel-head{padding:10px 14px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #f0efeb}
 .panel-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555}
@@ -2009,19 +2011,23 @@ function updateStickyOffset(){
   const tabsBar    = document.getElementById('tabs-bar');
   const kpiRow     = document.getElementById('kpi-row');
   const filterBar  = document.getElementById('filter-bar');
+  const mainLayout = document.querySelector('.main-layout');
   const tableEl    = document.querySelector('.table-container');
 
-  const headerH = header?.offsetHeight   || 60;
-  const tabsH   = tabsBar?.offsetHeight  || 41;
-  const kpiH    = kpiRow?.offsetHeight   || 90;
-  const filterH = filterBar?.offsetHeight|| 96;
+  const headerH = header?.offsetHeight    || 60;
+  const tabsH   = tabsBar?.offsetHeight   || 41;
+  const kpiH    = kpiRow?.offsetHeight    || 90;
+  const filterH = filterBar?.offsetHeight || 96;
 
   if (tabsBar)   tabsBar.style.top   = headerH + 'px';
   if (kpiRow)    kpiRow.style.top    = (headerH + tabsH) + 'px';
   if (filterBar) filterBar.style.top = (headerH + tabsH + kpiH) + 'px';
 
-  const tableTop = headerH + tabsH + kpiH + filterH;
-  if (tableEl) tableEl.style.height = (window.innerHeight - tableTop - 20) + 'px';
+  // Khoá chiều cao main-layout = phần còn lại của viewport → trang không cuộn
+  const remaining = window.innerHeight - headerH - tabsH - kpiH - filterH;
+  if (mainLayout) mainLayout.style.height = remaining + 'px';
+  // table-container fill toàn bộ left-panel
+  if (tableEl) tableEl.style.height = '100%';
 }
 
 // Override doSync to use OAuth fetch
