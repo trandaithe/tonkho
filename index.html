@@ -75,7 +75,9 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .badge-count{display:inline-block;background:#1a1a1a;color:#fff;font-size:10px;padding:1px 6px;border-radius:99px;margin-left:4px}
 
 /* ── MAIN LAYOUT ── */
-.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px 20px}
+.kpi-row{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;padding:14px 20px;position:sticky;z-index:190;background:#f0efeb}
+#tabs-bar{position:sticky;z-index:195}
+#filter-bar{position:sticky;z-index:185;background:#f0efeb;padding:8px 20px 4px}
 .kpi{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e0;position:relative;overflow:hidden}
 .kpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .kpi-total::before{background:#1a1a1a}.kpi-alert::before{background:#dc2626}
@@ -96,7 +98,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .fbtn.active-green{background:#16a34a;color:#fff;border-color:#16a34a}
 .search-wrap{flex:1;min-width:180px}
 .search-wrap input{width:100%;border:1px solid #d0d0c8;border-radius:20px;padding:5px 14px;font-size:12px;background:#fff;outline:none}
-.table-container{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow:visible}
+.table-container{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow-x:auto;overflow-y:auto}
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 table{user-select:none}
 thead{background:#1a1a1a}
@@ -159,7 +161,7 @@ tbody td{padding:9px 10px;vertical-align:middle;overflow:hidden}
 .page-btn:hover{background:#f0efeb}
 .page-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 .empty-row td{text-align:center;padding:30px;color:#bbb;font-size:12px}
-thead th{position:sticky;top:var(--thead-top,60px);z-index:100;overflow:visible;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+thead th{position:sticky;top:0;z-index:100;overflow:visible;box-shadow:0 2px 4px rgba(0,0,0,.25)}
 .resize-handle{
   position:absolute;right:-3px;top:0;bottom:0;width:10px;
   cursor:col-resize;z-index:20;user-select:none;
@@ -371,42 +373,44 @@ table{table-layout:fixed;width:100%}
   </div>
 </div>
 
-<!-- ── KPI ROW ── -->
-<div style="background:#fff;border-bottom:1px solid #e5e5e0;padding:0 20px;display:flex;gap:0;">
+<!-- ── TABS + KPI + FILTERS (sticky zone) ── -->
+<div id="tabs-bar" style="background:#fff;border-bottom:1px solid #e5e5e0;padding:0 20px;display:flex;gap:0;">
   <button class="tab-btn active" id="tab-forecast" onclick="switchTab('forecast')">📊 Dự báo nhập hàng</button>
   <button class="tab-btn" id="tab-surplus" onclick="switchTab('surplus')">🔴 Tồn dư cần đẩy</button>
 </div>
 <div class="kpi-row" id="kpi-row"></div>
+<div id="filter-bar">
+  <div class="toolbar">
+    <span class="filter-label">Phân loại:</span>
+    <div class="filter-group" id="cat-filter">
+      <button class="fbtn active" onclick="setCat('ALL',this)">Tất cả</button>
+      <button class="fbtn" onclick="setCat('ANAN',this)" data-active="active-blue">An An</button>
+      <button class="fbtn" onclick="setCat('HT',this)" data-active="active-green">Hệ thống</button>
+      <button class="fbtn" onclick="setCat('KHAC',this)">Khác</button>
+    </div>
+  </div>
+  <div class="toolbar" style="margin-bottom:4px">
+    <span class="filter-label">Kho:</span>
+    <div class="filter-group" id="wh-filter">
+      <button class="fbtn active" onclick="setWh('ALL',this)">Tất cả</button>
+      <button class="fbtn" onclick="setWh('AnAn',this)">AnAn</button>
+      <button class="fbtn" onclick="setWh('SMN',this)">SMN</button>
+      <button class="fbtn" onclick="setWh('SMT',this)">SMT</button>
+      <button class="fbtn" onclick="setWh('Upbase SMN',this)">Upbase SMN</button>
+    </div>
+    <span class="filter-label">Trạng thái:</span>
+    <div class="filter-group" id="status-filter">
+      <button class="fbtn active" onclick="setStatus('ALL',this)">Tất cả</button>
+      <button class="fbtn" onclick="setStatus('URGENT',this)">Cần nhập</button>
+      <button class="fbtn" onclick="setStatus('NOSALE',this)">Không bán</button>
+    </div>
+    <div class="search-wrap"><input type="text" placeholder="Tìm SKU hoặc tên..." oninput="setSearch(this.value)"/></div>
+  </div>
+</div>
 
 <!-- ── MAIN ── -->
 <div class="main-layout">
   <div class="left-panel">
-    <div class="toolbar">
-      <span class="filter-label">Phân loại:</span>
-      <div class="filter-group" id="cat-filter">
-        <button class="fbtn active" onclick="setCat('ALL',this)">Tất cả</button>
-        <button class="fbtn" onclick="setCat('ANAN',this)" data-active="active-blue">An An</button>
-        <button class="fbtn" onclick="setCat('HT',this)" data-active="active-green">Hệ thống</button>
-        <button class="fbtn" onclick="setCat('KHAC',this)">Khác</button>
-      </div>
-    </div>
-    <div class="toolbar" style="margin-bottom:10px">
-      <span class="filter-label">Kho:</span>
-      <div class="filter-group" id="wh-filter">
-        <button class="fbtn active" onclick="setWh('ALL',this)">Tất cả</button>
-        <button class="fbtn" onclick="setWh('AnAn',this)">AnAn</button>
-        <button class="fbtn" onclick="setWh('SMN',this)">SMN</button>
-        <button class="fbtn" onclick="setWh('SMT',this)">SMT</button>
-        <button class="fbtn" onclick="setWh('Upbase SMN',this)">Upbase SMN</button>
-      </div>
-      <span class="filter-label">Trạng thái:</span>
-      <div class="filter-group" id="status-filter">
-        <button class="fbtn active" onclick="setStatus('ALL',this)">Tất cả</button>
-        <button class="fbtn" onclick="setStatus('URGENT',this)">Cần nhập</button>
-        <button class="fbtn" onclick="setStatus('NOSALE',this)">Không bán</button>
-      </div>
-      <div class="search-wrap"><input type="text" placeholder="Tìm SKU hoặc tên..." oninput="setSearch(this.value)"/></div>
-    </div>
     <div class="table-container">
       <table><colgroup>
   <col id="col-sku" style="width:95px;min-width:70px">
@@ -1231,9 +1235,11 @@ function switchTab(tab) {
   document.getElementById('tab-forecast').className = 'tab-btn' + (isForecast?' active':'');
   document.getElementById('tab-surplus').className = 'tab-btn' + (!isForecast?' active':'');
   document.querySelector('.kpi-row').style.display = isForecast ? '' : 'none';
+  document.getElementById('filter-bar').style.display = isForecast ? '' : 'none';
   document.querySelector('.main-layout').style.display = isForecast ? '' : 'none';
   document.getElementById('surplus-tab').style.display = isForecast ? 'none' : 'block';
   if (!isForecast) { renderSurplus(); setTimeout(loadSurplusColWidths, 50); }
+  requestAnimationFrame(updateStickyOffset);
 }
 
 // ── SURPLUS STATE ─────────────────────────────────────────────────────────────
@@ -1999,8 +2005,23 @@ async function initNotesHeader() {
 function renderAll(){renderKPI();renderTable();renderAlerts();}
 
 function updateStickyOffset(){
-  const h = document.querySelector('.header')?.offsetHeight || 60;
-  document.documentElement.style.setProperty('--thead-top', h + 'px');
+  const header     = document.querySelector('.header');
+  const tabsBar    = document.getElementById('tabs-bar');
+  const kpiRow     = document.getElementById('kpi-row');
+  const filterBar  = document.getElementById('filter-bar');
+  const tableEl    = document.querySelector('.table-container');
+
+  const headerH = header?.offsetHeight   || 60;
+  const tabsH   = tabsBar?.offsetHeight  || 41;
+  const kpiH    = kpiRow?.offsetHeight   || 90;
+  const filterH = filterBar?.offsetHeight|| 96;
+
+  if (tabsBar)   tabsBar.style.top   = headerH + 'px';
+  if (kpiRow)    kpiRow.style.top    = (headerH + tabsH) + 'px';
+  if (filterBar) filterBar.style.top = (headerH + tabsH + kpiH) + 'px';
+
+  const tableTop = headerH + tabsH + kpiH + filterH;
+  if (tableEl) tableEl.style.height = (window.innerHeight - tableTop - 20) + 'px';
 }
 
 // Override doSync to use OAuth fetch
