@@ -7,6 +7,7 @@
 <title>Dự Báo Tồn Kho</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
 body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;font-size:13px}
 .header{background:#1a1a1a;color:#fff;padding:14px 20px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:200}
 .header-left h1{font-size:17px;font-weight:600;letter-spacing:-.3px}
@@ -100,7 +101,7 @@ body{font-family:'Segoe UI',Arial,sans-serif;background:#f0efeb;color:#1a1a1a;fo
 .fbtn.active-green{background:#16a34a;color:#fff;border-color:#16a34a}
 .search-wrap{flex:1;min-width:180px}
 .search-wrap input{width:100%;border:1px solid #d0d0c8;border-radius:20px;padding:5px 14px;font-size:12px;background:#fff;outline:none}
-.table-container{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow-x:auto;overflow-y:auto}
+.table-container{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow-x:auto;overflow-y:auto;flex:1;min-height:0}
 table{width:100%;border-collapse:collapse;font-size:12px;table-layout:fixed}
 table{user-select:none}
 thead{background:#1a1a1a}
@@ -786,10 +787,11 @@ function init() {
     return { ...recompute(merged, S.targetDays), cat: S.catMap[p.sku] || p.cat || 'KHAC' };
   });
   renderAll();
-  requestAnimationFrame(() => {
+  // double rAF: đảm bảo DOM đã paint xong trước khi đo chiều cao
+  requestAnimationFrame(() => requestAnimationFrame(() => {
     updateStickyOffset();
     window.addEventListener('resize', updateStickyOffset, { passive: true });
-  });
+  }));
 }
 
 function mergeSalesAvg(p) {
@@ -1239,8 +1241,16 @@ function switchTab(tab) {
   document.querySelector('.kpi-row').style.display = isForecast ? '' : 'none';
   document.getElementById('filter-bar').style.display = isForecast ? '' : 'none';
   document.querySelector('.main-layout').style.display = isForecast ? '' : 'none';
-  document.getElementById('surplus-tab').style.display = isForecast ? 'none' : 'block';
-  if (!isForecast) { renderSurplus(); setTimeout(loadSurplusColWidths, 50); }
+  const surplusTab = document.getElementById('surplus-tab');
+  surplusTab.style.display = isForecast ? 'none' : 'block';
+  if (!isForecast) {
+    // Cho surplus tab cuộn nội dung riêng (body overflow:hidden)
+    const hH = document.querySelector('.header')?.offsetHeight || 60;
+    const tH = document.getElementById('tabs-bar')?.offsetHeight || 41;
+    surplusTab.style.height = (window.innerHeight - hH - tH) + 'px';
+    surplusTab.style.overflowY = 'auto';
+    renderSurplus(); setTimeout(loadSurplusColWidths, 50);
+  }
   requestAnimationFrame(updateStickyOffset);
 }
 
@@ -2012,22 +2022,21 @@ function updateStickyOffset(){
   const kpiRow     = document.getElementById('kpi-row');
   const filterBar  = document.getElementById('filter-bar');
   const mainLayout = document.querySelector('.main-layout');
-  const tableEl    = document.querySelector('.table-container');
 
   const headerH = header?.offsetHeight    || 60;
   const tabsH   = tabsBar?.offsetHeight   || 41;
   const kpiH    = kpiRow?.offsetHeight    || 90;
   const filterH = filterBar?.offsetHeight || 96;
 
+  // Gán top cho từng vùng sticky
   if (tabsBar)   tabsBar.style.top   = headerH + 'px';
   if (kpiRow)    kpiRow.style.top    = (headerH + tabsH) + 'px';
   if (filterBar) filterBar.style.top = (headerH + tabsH + kpiH) + 'px';
 
-  // Khoá chiều cao main-layout = phần còn lại của viewport → trang không cuộn
+  // Khoá chiều cao main-layout = phần còn lại → html/body overflow:hidden ngăn page scroll
   const remaining = window.innerHeight - headerH - tabsH - kpiH - filterH;
   if (mainLayout) mainLayout.style.height = remaining + 'px';
-  // table-container fill toàn bộ left-panel
-  if (tableEl) tableEl.style.height = '100%';
+  // .left-panel height:100% + .table-container flex:1 + min-height:0 tự điền đầy
 }
 
 // Override doSync to use OAuth fetch
