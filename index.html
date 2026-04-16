@@ -199,15 +199,25 @@ table{table-layout:fixed;width:100%}
 .tab-btn{padding:12px 20px;border:none;background:transparent;font-size:13px;font-weight:500;color:#888;cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px}
 .tab-btn:hover{color:#1a1a1a}
 .tab-btn.active{color:#1a1a1a;border-bottom-color:#1a1a1a;font-weight:700}
-#surplus-tab{display:none}
-.surplus-section{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow:hidden;margin-bottom:16px}
-.surplus-section-head{padding:12px 16px;background:#1a1a1a;display:flex;justify-content:space-between;align-items:center}
+#surplus-tab{display:none;flex-direction:column}
+/* Sub-tab bar bên trong surplus */
+.surplus-sub-bar{display:flex;gap:0;border-bottom:2px solid #e5e5e0;margin:0 0 14px;flex-shrink:0}
+.surplus-sub-btn{padding:10px 22px;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;color:#888;border-bottom:3px solid transparent;margin-bottom:-2px;transition:color .15s,border-color .15s;display:flex;align-items:center;gap:7px}
+.surplus-sub-btn.active{color:#1a1a1a;border-bottom-color:#1a1a1a}
+.surplus-sub-btn:hover:not(.active){color:#444}
+.surplus-sub-badge{background:#e5e5e0;color:#555;font-size:10px;font-weight:700;border-radius:10px;padding:2px 7px;min-width:20px;text-align:center}
+.surplus-sub-btn.active .surplus-sub-badge{background:#1a1a1a;color:#fff}
+/* Panel chứa từng bảng */
+.surplus-panel{display:none;flex:1;min-height:0;flex-direction:column}
+.surplus-panel.active{display:flex}
+.surplus-section{background:#fff;border-radius:10px;border:1px solid #e5e5e0;overflow:hidden;flex:1;min-height:0;display:flex;flex-direction:column}
+.surplus-section-head{padding:12px 16px;background:#1a1a1a;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .surplus-section-title{font-size:12px;font-weight:700;color:#fff;text-transform:uppercase;letter-spacing:.5px}
 .surplus-count{font-size:11px;font-weight:700;padding:2px 10px;border-radius:99px}
 .surplus-count-red{background:#fee2e2;color:#dc2626}
 .surplus-count-amber{background:#fef3c7;color:#d97706}
 .surplus-count-gray{background:#f3f4f6;color:#6b7280}
-.surplus-tbl-wrap{overflow-x:auto;overflow-y:auto;max-height:480px}
+.surplus-tbl-wrap{overflow-x:auto;overflow-y:auto;flex:1;min-height:0}
 .surplus-table{width:100%;border-collapse:collapse;font-size:12px}
 .surplus-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;background:#fafafa;border-bottom:1px solid #f0efeb;cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;z-index:5;overflow:visible}
 .surplus-table th:hover{color:#1a1a1a}
@@ -222,7 +232,7 @@ table{table-layout:fixed;width:100%}
 .days-chip-gray{background:#f3f4f6;color:#888}
 .excess-qty{font-family:monospace;font-weight:700;color:#dc2626}
 .surplus-filter-bar{padding:10px 16px;border-bottom:1px solid #f0efeb;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fafafa}
-.surplus-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:14px 20px}
+.surplus-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px 0 10px;flex-shrink:0}
 .skpi{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e0;position:relative;overflow:hidden}
 .skpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
 .skpi-1::before{background:#dc2626}.skpi-2::before{background:#f59e0b}
@@ -451,9 +461,11 @@ table{table-layout:fixed;width:100%}
 </div>
 
 <!-- ── SURPLUS TAB ── -->
-<div id="surplus-tab" style="padding:0 20px 20px;">
+<div id="surplus-tab" style="padding:0 20px 16px;">
   <div class="surplus-kpi" id="surplus-kpi-row"></div>
-  <div style="padding:0 0 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+
+  <!-- Bộ lọc dùng chung -->
+  <div style="padding:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0">
     <span class="filter-label">Lọc theo kho:</span>
     <div class="filter-group" id="surplus-wh-filter">
       <button class="fbtn active" onclick="setSurplusWh('ALL',this)">Tất cả</button>
@@ -474,7 +486,7 @@ table{table-layout:fixed;width:100%}
     </div>
     <button class="btn" style="margin-left:auto" onclick="exportSurplusCSV()">Xuất CSV tồn dư</button>
   </div>
-  <div style="padding:0 0 12px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+  <div style="padding:0 0 10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;flex-shrink:0">
     <span class="filter-label">Trạng thái ghi chú:</span>
     <div class="filter-group" id="surplus-status-filter">
       <button class="fbtn active" onclick="setSurplusStatus('ALL',this)">Tất cả</button>
@@ -488,11 +500,21 @@ table{table-layout:fixed;width:100%}
     </div>
   </div>
 
-  <!-- Group 1: Tồn quá lâu (có doanh số) -->
+  <!-- Sub-tab bar -->
+  <div class="surplus-sub-bar">
+    <button class="surplus-sub-btn active" id="surplus-sub-btn-1" onclick="switchSurplusSubTab(1)">
+      📦 Vượt định mức <span class="surplus-sub-badge" id="s1-count">0</span>
+    </button>
+    <button class="surplus-sub-btn" id="surplus-sub-btn-2" onclick="switchSurplusSubTab(2)">
+      🚫 Không có doanh số <span class="surplus-sub-badge" id="s2-count">0</span>
+    </button>
+  </div>
+
+  <!-- Panel 1: Tồn quá lâu (có doanh số) -->
+  <div class="surplus-panel active" id="surplus-panel-1">
   <div class="surplus-section">
     <div class="surplus-section-head">
       <span class="surplus-section-title">📦 Tồn kho vượt định mức — có doanh số nhưng tồn quá lâu</span>
-      <span class="surplus-count surplus-count-red" id="s1-count">0 sản phẩm</span>
     </div>
     <div class="surplus-tbl-wrap">
       <table class="surplus-table" id="surplus-table-1" style="table-layout:fixed;width:100%">
@@ -522,12 +544,13 @@ table{table-layout:fixed;width:100%}
       </table>
     </div>
   </div>
+  </div><!-- /surplus-panel-1 -->
 
-  <!-- Group 2: Không có doanh số -->
+  <!-- Panel 2: Không có doanh số -->
+  <div class="surplus-panel" id="surplus-panel-2">
   <div class="surplus-section">
     <div class="surplus-section-head">
       <span class="surplus-section-title">🚫 Không có doanh số — tồn kho không có chuyển động</span>
-      <span class="surplus-count surplus-count-gray" id="s2-count">0 sản phẩm</span>
     </div>
     <div class="surplus-tbl-wrap">
       <table class="surplus-table" id="surplus-table-2" style="table-layout:fixed;width:100%">
@@ -553,6 +576,7 @@ table{table-layout:fixed;width:100%}
       </table>
     </div>
   </div>
+  </div><!-- /surplus-panel-2 -->
 </div>
 
 <!-- ── NOTE MODAL ── -->
@@ -783,10 +807,28 @@ function init() {
   S.catMap = loadCatMap();
   S.costMap = loadCostMap();
   S.kmSet = loadKMSet();
-  S.data = EMBEDDED_DATA.map(p => {
-    const merged = mergeSalesAvg(p);
-    return { ...recompute(merged, S.targetDays), cat: S.catMap[p.sku] || p.cat || 'KHAC' };
-  });
+
+  // Ưu tiên dùng data từ lần sync trước (localStorage), chỉ dùng EMBEDDED_DATA nếu chưa có cache
+  let usedCache = false;
+  try {
+    const cache = JSON.parse(localStorage.getItem('sync_cache') || 'null');
+    if(cache && Array.isArray(cache.data) && cache.data.length > 0){
+      S.data = cache.data.map(p => ({...recompute(p, S.targetDays), cat: S.catMap[p.sku]||p.cat||'KHAC', avg_source: p.avg_source}));
+      if(cache.salesAvg) Object.assign(SALES_AVG, cache.salesAvg);
+      if(cache.salesHist) Object.assign(SALES_HIST, cache.salesHist);
+      // Hiện lại status của lần sync cuối
+      if(cache.statusHtml) setStatus2(cache.statusHtml.replace('<span class="sync-dot"></span>','🕐 '));
+      usedCache = true;
+    }
+  } catch(e){ console.warn('Không đọc được cache:', e.message); }
+
+  if(!usedCache){
+    S.data = EMBEDDED_DATA.map(p => {
+      const merged = mergeSalesAvg(p);
+      return { ...recompute(merged, S.targetDays), cat: S.catMap[p.sku] || p.cat || 'KHAC' };
+    });
+  }
+
   renderAll();
   requestAnimationFrame(setupFixedHeader);
 }
@@ -898,106 +940,7 @@ function handleSyncClick() {
   }
 }
 
-async function doSync() {
-  const btn = document.getElementById('sync-btn');
-  btn.innerHTML='<span class="spinner"></span>Đang tải...'; btn.disabled=true;
-  const detailEl = document.getElementById('sync-detail-status');
-
-  // ── Tải 4 kho tồn kho ────────────────────────────────────────────────────
-  const allP={};
-  let successCount=0, errorWhs=[];
-
-  for(const [wh,gid] of Object.entries(GIDS)){
-    setStatus2(`Đang tải kho ${wh}...`);
-    if(detailEl) detailEl.textContent = `Đang tải kho ${wh}...`;
-    const url = csvUrl(SHEET_ID, gid);
-    try {
-      const res = await fetch(url);
-      if(!res.ok) throw new Error('HTTP '+res.status);
-      const text = await res.text();
-      if(text.includes('<!DOCTYPE') || text.includes('<html')) throw new Error('Chưa publish');
-      const lines = text.split('\n');
-      let hi=-1;
-      for(let i=0;i<Math.min(lines.length,8);i++){if(lines[i].includes('Mã SKU')||lines[i].includes('STT')){hi=i;break;}}
-      if(hi<0) throw new Error('Không tìm thấy header');
-      for(let i=hi+2;i<lines.length;i++){
-        const cols=splitCSVRow(lines[i]);
-        const sku=(cols[1]||'').trim(); if(!sku||sku==='TỔNG'||sku==='')continue;
-        const name=(cols[2]||'').trim();
-        const stocks=[]; for(let j=5;j<cols.length;j++){const v=parseFloat(cols[j]);if(!isNaN(v))stocks.push(v);}
-        const avg=computeAvg(stocks), stock=stocks[0]||0;
-        if(!allP[sku])allP[sku]={sku,name,warehouses:{}};
-        allP[sku].warehouses[wh]={stock,avg,history:stocks.slice(0,10),
-          days_left:avg>0?+(stock/avg).toFixed(1):null,
-          needed:avg>0?Math.max(0,Math.round(avg*S.targetDays-stock)):0};
-      }
-      successCount++;
-    } catch(e){
-      errorWhs.push(wh);
-      console.warn('Lỗi tải '+wh, e.message);
-    }
-  }
-
-  // ── Tải báo cáo doanh số tháng hiện tại ─────────────────────────────────
-  const now = new Date();
-  const monthSheet = 'T' + String(now.getMonth()+1).padStart(2,'0') + '.' + now.getFullYear();
-  const salesGids = {
-    'T04.2026': '1207091473',
-    'T03.2026': '1207091473',
-  };
-  const salesGid = salesGids[monthSheet] || '1207091473';
-  const salesUrl = `https://docs.google.com/spreadsheets/d/1Ic-58P_h-N2AixISAsJUJ-W6HOzGXRB0nFjeWBZVfZQ/pub?gid=${salesGid}&single=true&output=csv`;
-  let salesLoaded = false;
-  const newSalesAvg = {};
-  const newSalesHist = {};
-
-  if(detailEl) detailEl.textContent = `Đang tải báo cáo doanh số ${monthSheet}...`;
-  setStatus2(`Đang tải báo cáo doanh số...`);
-  try {
-    const res = await fetch(salesUrl);
-    if(!res.ok) throw new Error('HTTP '+res.status);
-    const text = await res.text();
-    if(text.includes('<!DOCTYPE')||text.includes('<html')) throw new Error('Chưa publish');
-    parseSalesCSV(text, newSalesAvg, newSalesHist);
-    salesLoaded = true;
-  } catch(e) {
-    console.warn('Lỗi tải báo cáo doanh số:', e.message);
-  }
-
-  // ── Merge và cập nhật dữ liệu ────────────────────────────────────────────
-  const built = Object.values(allP).map(p=>{
-    const ts=Object.values(p.warehouses).reduce((a,w)=>a+w.stock,0);
-    const ta=+Object.values(p.warehouses).reduce((a,w)=>a+w.avg,0).toFixed(1);
-    return {...p, cat:S.catMap[p.sku]||'KHAC', total_stock:ts, total_avg:ta,
-      total_days:ta>0?+(ts/ta).toFixed(1):null,
-      total_needed:ta>0?Math.max(0,Math.round(ta*S.targetDays-ts)):0};
-  });
-
-  if(built.length > 0) {
-    // Override SALES_AVG với data mới nếu tải được
-    if(salesLoaded) {
-      Object.assign(SALES_AVG, newSalesAvg);
-      Object.assign(SALES_HIST, newSalesHist);
-    }
-    S.data = built.map(p => { const m=mergeSalesAvg(p); return {...recompute(m,S.targetDays), cat:S.catMap[p.sku]||p.cat||'KHAC'}; });
-    const timeStr = new Date().toLocaleString('vi-VN');
-    const salesStatus = salesLoaded ? `· Doanh số ${monthSheet} ✓` : `· Doanh số: chưa publish`;
-    const whStatus = errorWhs.length > 0 ? ` · Lỗi: ${errorWhs.join(', ')}` : '';
-    setStatus2(`<span class="sync-dot"></span>${S.data.length} sản phẩm · ${successCount}/4 kho${whStatus}${salesStatus} · ${timeStr}`);
-    document.getElementById('connect-bar').style.display='none';
-    renderAll();
-    if(detailEl) detailEl.textContent='';
-  } else {
-    // Không fetch được gì → hiện hướng dẫn
-    setStatus2('⚠ Chưa kết nối được. Nhấn "Kết nối Sheet" để xem hướng dẫn.');
-    document.getElementById('connect-bar').style.display='block';
-    if(detailEl) detailEl.textContent = errorWhs.length===4
-      ? '❌ Cả 4 kho đều lỗi — Sheet chưa được Xuất bản lên web'
-      : `❌ Lỗi kho: ${errorWhs.join(', ')}`;
-  }
-
-  btn.innerHTML='🔄 Đồng bộ Drive'; btn.disabled=false;
-}
+// (hàm doSync() cũ đã bị xóa — dùng doSync() ở phía dưới có hỗ trợ OAuth + tổng hợp tồn)
 
 function parseSalesCSV(text, avgOut, histOut) {
   // Parse sales CSV: row 1=dates, row 2=channels, row 3=SL/DS, data from row 4
@@ -1239,12 +1182,18 @@ function switchTab(tab) {
   document.getElementById('filter-bar').style.display = isForecast ? '' : 'none';
   document.querySelector('.main-layout').style.display = isForecast ? '' : 'none';
   const surplusTab = document.getElementById('surplus-tab');
-  surplusTab.style.display = isForecast ? 'none' : 'block';
-  // body là flex column → surplus-tab cần flex:1 để điền đầy phần còn lại
+  surplusTab.style.display = isForecast ? 'none' : 'flex';
   surplusTab.style.flex = isForecast ? '' : '1';
   surplusTab.style.minHeight = isForecast ? '' : '0';
-  surplusTab.style.overflowY = isForecast ? '' : 'auto';
+  surplusTab.style.overflow = isForecast ? '' : 'hidden';
   if (!isForecast) { renderSurplus(); setTimeout(loadSurplusColWidths, 50); }
+}
+
+function switchSurplusSubTab(n) {
+  document.getElementById('surplus-sub-btn-1').classList.toggle('active', n===1);
+  document.getElementById('surplus-sub-btn-2').classList.toggle('active', n===2);
+  document.getElementById('surplus-panel-1').classList.toggle('active', n===1);
+  document.getElementById('surplus-panel-2').classList.toggle('active', n===2);
 }
 
 // ── SURPLUS STATE ─────────────────────────────────────────────────────────────
@@ -1375,7 +1324,7 @@ function renderSurplus() {
       <div class="skpi-sub">so với định mức ${S.targetDays}N</div></div>`;
 
   // Group 1
-  document.getElementById('s1-count').textContent = group1.length + ' sản phẩm';
+  document.getElementById('s1-count').textContent = group1.length;
   const daysChip = (d) => {
     if(d>365) return `<span class="days-chip days-chip-red">${d} ngày</span>`;
     if(d>180) return `<span class="days-chip days-chip-amber">${d} ngày</span>`;
@@ -1396,7 +1345,7 @@ function renderSurplus() {
     '<tr><td colspan="9" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm tồn dư 🎉</td></tr>';
 
   // Group 2
-  document.getElementById('s2-count').textContent = group2.length + ' sản phẩm';
+  document.getElementById('s2-count').textContent = group2.length;
   document.getElementById('surplus-tbody-2').innerHTML = group2.length ? group2.map(p=>`
     <tr onclick="switchTab('forecast');setTimeout(()=>selectProduct('${p.sku}'),100)">
       <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}</td>
@@ -2125,30 +2074,40 @@ async function doSync() {
     salesLoaded=true;
   } catch(e){ console.warn('Lỗi doanh số:', e.message); }
 
-  // Tải Tổng hợp tồn (cột K = tổng chính xác)
+  // Tải Tổng hợp tồn (cột K = tổng tồn cuối chính xác)
   const totalStockMap = {};
+  let thLoaded = false, thCount = 0;
   try {
     if(detailEl) detailEl.textContent='Đang tải tổng hợp tồn...';
     const thText = await fetchFn(SHEET_ID, TONGHOP_GID);
     const thLines = thText.split('\n');
     let thHi = -1;
-    for(let i=0;i<Math.min(thLines.length,6);i++){
-      if(thLines[i].includes('Mã SKU')||thLines[i].includes('STT')){thHi=i;break;}
+    // Tìm dòng header trong 15 dòng đầu (đề phòng sheet có nhiều dòng tiêu đề phụ)
+    for(let i=0;i<Math.min(thLines.length,15);i++){
+      const row=thLines[i];
+      if(row.includes('Mã SKU')||row.includes('Mã hàng')||row.includes('STT')||row.includes('Mã SP')){
+        thHi=i; break;
+      }
     }
     if(thHi>=0){
-      for(let i=thHi+2;i<thLines.length;i++){
+      // Bắt đầu từ thHi+1 (không skip dòng data); dòng blank/đơn vị sẽ bị lọc bởi !sku
+      for(let i=thHi+1;i<thLines.length;i++){
         const cols=splitCSVRow(thLines[i]);
         const sku=(cols[1]||'').trim();
-        if(!sku||sku==='TỔNG'||sku==='') continue;
-        const total=parseFloat(cols[10]); // col K = index 10 = Tổng
+        if(!sku||sku==='TỔNG'||sku===''||/^[0-9]+$/.test(sku)) continue; // bỏ qua số thứ tự / dòng trống
+        const total=parseFloat(cols[10]); // col K = index 10 = Tổng tồn cuối
         const anan=parseFloat(cols[8])||0;
         const smn=parseFloat(cols[5])||0;
         const smt=parseFloat(cols[7])||0;
         const upbase=parseFloat(cols[6])||0;
-        if(!isNaN(total)) totalStockMap[sku]={total,AnAn:anan,SMN:smn,SMT:smt,'Upbase SMN':upbase};
+        if(!isNaN(total) && total>=0) totalStockMap[sku]={total,AnAn:anan,SMN:smn,SMT:smt,'Upbase SMN':upbase};
       }
+    } else {
+      console.warn('Tổng hợp tồn: Không tìm thấy dòng header (Mã SKU) trong 15 dòng đầu');
     }
-    console.log('Tổng hợp tồn:', Object.keys(totalStockMap).length, 'SKUs');
+    thCount = Object.keys(totalStockMap).length;
+    thLoaded = thCount > 0;
+    console.log('Tổng hợp tồn:', thCount, 'SKUs', thHi>=0 ? `(header dòng ${thHi+1})` : '(header không tìm thấy)');
   } catch(e){ console.warn('Lỗi tải tổng hợp tồn:', e.message); }
 
   const built=Object.values(allP).map(p=>{
@@ -2170,9 +2129,21 @@ async function doSync() {
     S.data=built.map(p=>{const m=mergeSalesAvg(p);return {...recompute(m,S.targetDays),cat:S.catMap[p.sku]||p.cat||'KHAC', avg_source:m.avg_source};});
     const t=new Date().toLocaleString('vi-VN');
     const src=useOAuth?'🔐 OAuth':'🌐 Public';
-    const whe=errorWhs.length>0?` · Lỗi: ${errorWhs.join(', ')}`:''
+    const whe=errorWhs.length>0?` · Lỗi kho: ${errorWhs.join(', ')}`:''
     const sls=salesLoaded?`· Doanh số ✓`:'· Doanh số: chưa publish';
-    setStatus2(`<span class="sync-dot"></span>${S.data.length} SP · ${successCount}/4 kho${whe} ${sls} · ${src} · ${t}`);
+    const ths=thLoaded?`· Tổng hợp tồn ✓ (${thCount} SKU)`:'· ⚠ Tổng hợp tồn: không load được — tồn kho có thể không chính xác';
+    const statusHtml=`<span class="sync-dot"></span>${S.data.length} SP · ${successCount}/4 kho${whe} ${sls} ${ths} · ${src} · ${t}`;
+    setStatus2(statusHtml);
+    // ── Lưu cache vào localStorage để giữ data sau khi refresh ──────────────
+    try {
+      localStorage.setItem('sync_cache', JSON.stringify({
+        data: S.data,
+        salesAvg: SALES_AVG,
+        salesHist: SALES_HIST,
+        syncTime: t,
+        statusHtml: statusHtml
+      }));
+    } catch(e){ console.warn('Không lưu được cache:', e.message); }
     document.getElementById('connect-bar').style.display='none';
     if(detailEl) detailEl.textContent='';
     renderAll();
