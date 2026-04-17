@@ -435,6 +435,7 @@ table{table-layout:fixed;width:100%}
   <col id="col-days" style="width:78px;min-width:55px">
   <col id="col-value" style="width:95px;min-width:70px">
   <col id="col-need" style="width:85px;min-width:60px">
+  <col id="col-fnote" style="width:180px;min-width:130px">
 </colgroup>
         <thead><tr>
           <th onclick="sortBy('sku')">Mã SKU ↕<span class="resize-handle" onmousedown="startResize(event,'col-sku')"></span></th>
@@ -444,7 +445,8 @@ table{table-layout:fixed;width:100%}
           <th onclick="sortBy('total_stock')" style="text-align:center">Tồn kho ↕<span class="resize-handle" onmousedown="startResize(event,'col-stock')"></span></th>
           <th onclick="sortBy('total_days')" style="text-align:center">Ngày còn ↕<span class="resize-handle" onmousedown="startResize(event,'col-days')"></span></th>
           <th onclick="sortBy('inv_value')" style="text-align:right">Giá trị tồn ↕<span class="resize-handle" onmousedown="startResize(event,'col-value')"></span></th>
-          <th onclick="sortBy('total_needed')">Cần nhập ↕</th>
+          <th onclick="sortBy('total_needed')">Cần nhập ↕<span class="resize-handle" onmousedown="startResize(event,'col-need')"></span></th>
+          <th>Ghi chú<span class="resize-handle" onmousedown="startResize(event,'col-fnote')"></span></th>
         </tr></thead>
         <tbody id="product-tbody"></tbody>
       </table>
@@ -590,13 +592,22 @@ table{table-layout:fixed;width:100%}
       <button class="note-close" onclick="closeNote()">×</button>
     </div>
     <div class="note-box-body">
-      <div style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;">
+      <!-- Tags cho tab Tồn dư -->
+      <div id="note-tags-surplus" style="margin-bottom:8px;display:flex;gap:6px;flex-wrap:wrap;">
         <span class="note-tag nt-red" onclick="appendTag('🔴 Ưu tiên đẩy')">🔴 Ưu tiên đẩy</span>
         <span class="note-tag nt-amber" onclick="appendTag('⏳ Đang xử lý')">⏳ Đang xử lý</span>
         <span class="note-tag nt-green" onclick="appendTag('✅ Đã xử lý xong')">✅ Đã xử lý xong</span>
         <span class="note-tag nt-blue" onclick="appendTag('💡 Chờ phương án')">💡 Chờ phương án</span>
       </div>
-      <textarea class="note-textarea" id="note-textarea" placeholder="Nhập ghi chú: lý do tồn dư, phương án đẩy hàng, người phụ trách, deadline..."></textarea>
+      <!-- Tags cho tab Dự báo nhập hàng -->
+      <div id="note-tags-forecast" style="margin-bottom:8px;display:none;gap:6px;flex-wrap:wrap;">
+        <span class="note-tag nt-amber" onclick="appendTag('🛒 Đã đặt hàng')">🛒 Đã đặt hàng</span>
+        <span class="note-tag nt-blue" onclick="appendTag('🚚 Hàng đang về')">🚚 Hàng đang về</span>
+        <span class="note-tag nt-green" onclick="appendTag('✅ Đã nhập kho')">✅ Đã nhập kho</span>
+        <span class="note-tag nt-red" onclick="appendTag('⏸ Tạm hoãn nhập')">⏸ Tạm hoãn nhập</span>
+        <span class="note-tag" onclick="appendTag('📋 Cần xem xét')">📋 Cần xem xét</span>
+      </div>
+      <textarea class="note-textarea" id="note-textarea" placeholder="Nhập ghi chú..."></textarea>
       <div class="note-meta" id="note-meta"></div>
     </div>
     <div class="note-box-foot">
@@ -1089,7 +1100,9 @@ function renderTable(){
         <td class="num-cell">${v.stock.toLocaleString('vi')}</td>
         <td class="num-cell">${daysHtml(v.days,S.targetDays)}</td>
         ${(()=>{const cost=getCost(p.sku);const val=cost&&v.stock?cost*v.stock:0;return val>0?`<td class="value-cell" title="${(cost*v.stock).toLocaleString('vi')}đ (${v.stock.toLocaleString('vi')} × ${cost.toLocaleString('vi')}đ)">${fmtVND(val)}</td>`:`<td class="value-na">—</td>`})()}
-        ${needTd}</tr>`;
+        ${needTd}
+        <td class="note-cell" style="vertical-align:middle">${getForecastNoteBtn(p.sku,p.name)}</td>
+        </tr>`;
     }).join('');
   }
   const pag=document.getElementById('pagination');
@@ -1361,6 +1374,7 @@ function renderSurplus() {
 
 // ── NOTES (localStorage) ─────────────────────────────────────────────────────
 let _noteTarget = null;
+let _noteType = 'surplus'; // 'surplus' hoặc 'forecast'
 
 function loadNotes() {
   try { return JSON.parse(localStorage.getItem('surplus_notes')||'{}'); } catch(e){ return {}; }
@@ -1368,21 +1382,37 @@ function loadNotes() {
 function saveNotes(notes) {
   try { localStorage.setItem('surplus_notes', JSON.stringify(notes)); } catch(e){}
 }
+function loadForecastNotes() {
+  try { return JSON.parse(localStorage.getItem('forecast_notes')||'{}'); } catch(e){ return {}; }
+}
+function saveForecastNotes(notes) {
+  try { localStorage.setItem('forecast_notes', JSON.stringify(notes)); } catch(e){}
+}
 
-function openNote(sku, name) {
+function _openNoteModal(sku, name, type) {
   _noteTarget = sku;
-  const notes = loadNotes();
+  _noteType = type;
+  const notes = type === 'forecast' ? loadForecastNotes() : loadNotes();
   const note = notes[sku] || {};
   document.getElementById('note-modal-title').textContent = name.length>35 ? name.slice(0,34)+'…' : name;
   document.getElementById('note-modal-sku').textContent = sku;
   document.getElementById('note-textarea').value = note.text || '';
+  document.getElementById('note-textarea').placeholder = type === 'forecast'
+    ? 'Ghi chú nhập hàng: số lượng đặt, nhà cung cấp, ngày dự kiến về...'
+    : 'Ghi chú: lý do tồn dư, phương án đẩy hàng, người phụ trách, deadline...';
   document.getElementById('note-meta').textContent = note.updated
-    ? 'Cập nhật lần cuối: ' + note.updated + (note.author?' · '+note.author:'')
+    ? 'Cập nhật lần cuối: ' + note.updated
     : '';
   document.getElementById('note-delete-btn').style.display = note.text ? '' : 'none';
+  // Hiện/ẩn tag sets
+  document.getElementById('note-tags-surplus').style.display = type === 'surplus' ? 'flex' : 'none';
+  document.getElementById('note-tags-forecast').style.display = type === 'forecast' ? 'flex' : 'none';
   document.getElementById('note-modal').style.display = 'flex';
   setTimeout(()=>document.getElementById('note-textarea').focus(), 50);
 }
+
+function openNote(sku, name) { _openNoteModal(sku, name, 'surplus'); }
+function openForecastNote(sku, name) { _openNoteModal(sku, name, 'forecast'); }
 
 function closeNote() {
   document.getElementById('note-modal').style.display = 'none';
@@ -1398,32 +1428,49 @@ function appendTag(tag) {
 
 async function saveNote() {
   if(!_noteTarget) return;
-  const notes = loadNotes();
   const text = document.getElementById('note-textarea').value.trim();
-  if(text) {
-    notes[_noteTarget] = { text, updated: new Date().toLocaleString('vi-VN') };
-    saveNotes(notes);
-    saveNoteToSheet(_noteTarget, text); // async, không chờ
+  if(_noteType === 'forecast') {
+    const notes = loadForecastNotes();
+    if(text) { notes[_noteTarget] = { text, updated: new Date().toLocaleString('vi-VN') }; }
+    else { delete notes[_noteTarget]; }
+    saveForecastNotes(notes);
+    closeNote();
+    renderTable();
   } else {
-    delete notes[_noteTarget];
-    saveNotes(notes);
-    deleteNoteFromSheet(_noteTarget); // async, không chờ
+    const notes = loadNotes();
+    if(text) {
+      notes[_noteTarget] = { text, updated: new Date().toLocaleString('vi-VN') };
+      saveNotes(notes);
+      saveNoteToSheet(_noteTarget, text);
+    } else {
+      delete notes[_noteTarget];
+      saveNotes(notes);
+      deleteNoteFromSheet(_noteTarget);
+    }
+    closeNote();
+    renderSurplus();
+    renderTable();
   }
-  closeNote();
-  renderSurplus();
-  renderTable();
 }
 
 async function deleteNote() {
   if(!_noteTarget) return;
   if(!confirm('Xoá ghi chú này?')) return;
-  const notes = loadNotes();
-  delete notes[_noteTarget];
-  saveNotes(notes);
-  deleteNoteFromSheet(_noteTarget);
-  closeNote();
-  renderSurplus();
-  renderTable();
+  if(_noteType === 'forecast') {
+    const notes = loadForecastNotes();
+    delete notes[_noteTarget];
+    saveForecastNotes(notes);
+    closeNote();
+    renderTable();
+  } else {
+    const notes = loadNotes();
+    delete notes[_noteTarget];
+    saveNotes(notes);
+    deleteNoteFromSheet(_noteTarget);
+    closeNote();
+    renderSurplus();
+    renderTable();
+  }
 }
 
 function getNoteStatus(sku) {
@@ -1477,6 +1524,35 @@ function getNoteBtn(sku, name) {
     </button>
     ${chip}
     ${previewText}
+  </div>`;
+}
+
+function getForecastNoteBtn(sku, name) {
+  const notes = loadForecastNotes();
+  const note = notes[sku];
+  const hasNote = note && note.text;
+  // Xác định tag hiện tại
+  const text = note?.text || '';
+  let chip = '';
+  if (text.includes('🛒 Đã đặt hàng'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fef3c7;color:#d97706;margin-top:3px">🛒 Đã đặt hàng</span>';
+  else if (text.includes('🚚 Hàng đang về'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dbeafe;color:#1d4ed8;margin-top:3px">🚚 Hàng đang về</span>';
+  else if (text.includes('✅ Đã nhập kho')) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dcfce7;color:#15803d;margin-top:3px">✅ Đã nhập kho</span>';
+  else if (text.includes('⏸ Tạm hoãn nhập')) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fee2e2;color:#dc2626;margin-top:3px">⏸ Tạm hoãn nhập</span>';
+  else if (text.includes('📋 Cần xem xét'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#f3f4f6;color:#555;margin-top:3px">📋 Cần xem xét</span>';
+  else if (hasNote) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#f3f4f6;color:#555;margin-top:3px">📝 Có ghi chú</span>';
+  // Preview text (bỏ dòng tag)
+  let preview = '';
+  if (hasNote) {
+    const lines = text.split('\n').filter(l=>!l.startsWith('🛒')&&!l.startsWith('🚚')&&!l.startsWith('✅')&&!l.startsWith('⏸')&&!l.startsWith('📋'));
+    const txt = lines.join(' ').trim();
+    if (txt) preview = `<div class="note-preview" title="${txt.replace(/"/g,"'")}">${txt.length>40?txt.slice(0,39)+'…':txt}</div>`;
+  }
+  const nameSafe = name.replace(/'/g,"\\'");
+  return `<div class="note-cell" style="display:flex;flex-direction:column;align-items:flex-start;gap:0">
+    <button class="note-btn ${hasNote?'has-note':''}"
+      onclick="event.stopPropagation();openForecastNote('${sku}','${nameSafe}')">
+      ${hasNote ? '📝 Sửa ghi chú' : '+ Ghi chú'}
+    </button>${chip}${preview}
   </div>`;
 }
 
