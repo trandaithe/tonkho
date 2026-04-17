@@ -430,6 +430,7 @@ table{table-layout:fixed;width:100%}
       <button class="fbtn" onclick="setNoteFilter('🛒 Đã đặt hàng',this)">🛒 Đã đặt hàng</button>
       <button class="fbtn" onclick="setNoteFilter('🚚 Hàng đang về',this)">🚚 Hàng đang về</button>
       <button class="fbtn" onclick="setNoteFilter('✅ Đã nhập kho',this)">✅ Đã nhập kho</button>
+      <button class="fbtn" onclick="setNoteFilter('🔀 Điều chuyển kho',this)">🔀 Điều chuyển kho</button>
       <button class="fbtn" onclick="setNoteFilter('⏸ Tạm hoãn nhập',this)">⏸ Tạm hoãn nhập</button>
       <button class="fbtn" onclick="setNoteFilter('📋 Cần xem xét',this)">📋 Cần xem xét</button>
     </div>
@@ -619,6 +620,7 @@ table{table-layout:fixed;width:100%}
         <span class="note-tag nt-amber" onclick="appendTag('🛒 Đã đặt hàng')">🛒 Đã đặt hàng</span>
         <span class="note-tag nt-blue" onclick="appendTag('🚚 Hàng đang về')">🚚 Hàng đang về</span>
         <span class="note-tag nt-green" onclick="appendTag('✅ Đã nhập kho')">✅ Đã nhập kho</span>
+        <span class="note-tag nt-blue" onclick="appendTag('🔀 Điều chuyển kho')">🔀 Điều chuyển kho</span>
         <span class="note-tag nt-red" onclick="appendTag('⏸ Tạm hoãn nhập')">⏸ Tạm hoãn nhập</span>
         <span class="note-tag" onclick="appendTag('📋 Cần xem xét')">📋 Cần xem xét</span>
       </div>
@@ -645,6 +647,7 @@ const TONGHOP_GID = '0'; // Sheet Tổng hợp tồn
 let OAUTH_CLIENT_ID = localStorage.getItem('oauth_client_id') || _DEFAULT_CLIENT_ID;
 let _accessToken = null;
 let _tokenExpiry = 0;
+let _silentAuth = false;     // đang thử đăng nhập im lặng (không hiện alert nếu thất bại)
 
 // ── CONFIG ───────────────────────────────────────────────────────────────────
 const SHEET_ID = "1wXnjGbY3nFRWtlpKb1c15DrfEEIE3c2VXb3QQ69P4Jc";
@@ -1562,13 +1565,14 @@ function getForecastNoteBtn(sku, name) {
   else if (text.includes('🛒 Đã đặt hàng'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fef3c7;color:#d97706;margin-top:3px">🛒 Đã đặt hàng</span>';
   else if (text.includes('🚚 Hàng đang về'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dbeafe;color:#1d4ed8;margin-top:3px">🚚 Hàng đang về</span>';
   else if (text.includes('✅ Đã nhập kho')) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dcfce7;color:#15803d;margin-top:3px">✅ Đã nhập kho</span>';
+  else if (text.includes('🔀 Điều chuyển kho')) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dbeafe;color:#1d4ed8;margin-top:3px">🔀 Điều chuyển kho</span>';
   else if (text.includes('⏸ Tạm hoãn nhập')) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fee2e2;color:#dc2626;margin-top:3px">⏸ Tạm hoãn nhập</span>';
   else if (text.includes('📋 Cần xem xét'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#f3f4f6;color:#555;margin-top:3px">📋 Cần xem xét</span>';
   else if (hasNote) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#f3f4f6;color:#555;margin-top:3px">📝 Có ghi chú</span>';
   // Preview text (bỏ dòng tag)
   let preview = '';
   if (hasNote) {
-    const lines = text.split('\n').filter(l=>!l.startsWith('🔴')&&!l.startsWith('🛒')&&!l.startsWith('🚚')&&!l.startsWith('✅')&&!l.startsWith('⏸')&&!l.startsWith('📋'));
+    const lines = text.split('\n').filter(l=>!l.startsWith('🔴')&&!l.startsWith('🛒')&&!l.startsWith('🚚')&&!l.startsWith('✅')&&!l.startsWith('🔀')&&!l.startsWith('⏸')&&!l.startsWith('📋'));
     const txt = lines.join(' ').trim();
     if (txt) preview = `<div class="note-preview" title="${txt.replace(/"/g,"'")}">${txt.length>40?txt.slice(0,39)+'…':txt}</div>`;
   }
@@ -1682,6 +1686,13 @@ function initOAuth() {
     if (_accessToken && Date.now() < _tokenExpiry) {
       showStep('synced');
     } else {
+      // Thử đăng nhập im lặng — nếu trình duyệt đã có session Google thì sẽ tự lấy token
+      setTimeout(() => {
+        if (!_accessToken) {
+          _silentAuth = true;
+          try { window._tokenClient.requestAccessToken({ prompt: '' }); } catch(e) { _silentAuth = false; }
+        }
+      }, 800);
       showStep('login');
     }
   } catch(e) {
@@ -1746,14 +1757,20 @@ function requestToken() {
 }
 
 function onTokenReceived(resp) {
+  const wasSilent = _silentAuth;
+  _silentAuth = false;
   if (resp.error) {
-    console.error('OAuth error:', resp.error);
-    alert('Đăng nhập thất bại: ' + resp.error + '\nKiểm tra lại Client ID và Authorized Origins.');
+    // Nếu là silent auth thất bại thì im lặng (không popup), chỉ hiện nút đăng nhập
+    if (!wasSilent) {
+      console.error('OAuth error:', resp.error);
+      alert('Đăng nhập thất bại: ' + resp.error + '\nKiểm tra lại Client ID và Authorized Origins.');
+    }
+    if (!_accessToken) showStep('login');
     return;
   }
   _accessToken = resp.access_token;
   _tokenExpiry = Date.now() + ((resp.expires_in || 3600) - 60) * 1000;
-  // Lấy user info từ token introspect
+  // Lấy user info
   fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
     headers: { Authorization: 'Bearer ' + _accessToken }
   }).then(r => r.json()).then(info => {
@@ -1762,11 +1779,11 @@ function onTokenReceived(resp) {
     if(el) el.textContent = '✅ ' + name + ' (' + (info.email||'') + ')';
   }).catch(() => {});
   showStep('synced');
-  // Khi đăng nhập: chỉ PULL từ Sheet về, không push (tránh xóa mất data)
+  // Kéo dữ liệu từ Sheet về ngay
   setTimeout(async () => {
     await initNotesHeader();
-    await syncNotesFromSheet(); // kéo ghi chú + phân loại từ Sheet
-    doSync(); // load tồn kho với catMap/kmSet đã cập nhật
+    await syncNotesFromSheet();
+    doSync();
   }, 300);
 }
 
