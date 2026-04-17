@@ -420,6 +420,20 @@ table{table-layout:fixed;width:100%}
     </div>
     <div class="search-wrap"><input type="text" placeholder="Tìm SKU hoặc tên..." oninput="setSearch(this.value)"/></div>
   </div>
+  <div class="toolbar" style="margin-bottom:4px">
+    <span class="filter-label">Ghi chú:</span>
+    <div class="filter-group" id="note-filter">
+      <button class="fbtn active" onclick="setNoteFilter('ALL',this)">Tất cả</button>
+      <button class="fbtn" onclick="setNoteFilter('HAS_NOTE',this)">📝 Có ghi chú</button>
+      <button class="fbtn" onclick="setNoteFilter('NO_NOTE',this)">— Chưa ghi chú</button>
+      <button class="fbtn" onclick="setNoteFilter('🔴 Cần nhập',this)">🔴 Cần nhập</button>
+      <button class="fbtn" onclick="setNoteFilter('🛒 Đã đặt hàng',this)">🛒 Đã đặt hàng</button>
+      <button class="fbtn" onclick="setNoteFilter('🚚 Hàng đang về',this)">🚚 Hàng đang về</button>
+      <button class="fbtn" onclick="setNoteFilter('✅ Đã nhập kho',this)">✅ Đã nhập kho</button>
+      <button class="fbtn" onclick="setNoteFilter('⏸ Tạm hoãn nhập',this)">⏸ Tạm hoãn nhập</button>
+      <button class="fbtn" onclick="setNoteFilter('📋 Cần xem xét',this)">📋 Cần xem xét</button>
+    </div>
+  </div>
 </div>
 
 <!-- ── MAIN ── -->
@@ -601,6 +615,7 @@ table{table-layout:fixed;width:100%}
       </div>
       <!-- Tags cho tab Dự báo nhập hàng -->
       <div id="note-tags-forecast" style="margin-bottom:8px;display:none;gap:6px;flex-wrap:wrap;">
+        <span class="note-tag nt-red" onclick="appendTag('🔴 Cần nhập')">🔴 Cần nhập</span>
         <span class="note-tag nt-amber" onclick="appendTag('🛒 Đã đặt hàng')">🛒 Đã đặt hàng</span>
         <span class="note-tag nt-blue" onclick="appendTag('🚚 Hàng đang về')">🚚 Hàng đang về</span>
         <span class="note-tag nt-green" onclick="appendTag('✅ Đã nhập kho')">✅ Đã nhập kho</span>
@@ -644,7 +659,7 @@ const SALES_HIST = {"NK008":[202.0,534.0,158.0,795.0,232.0,220.0,281.0,186.0,370
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 const S = {
-  cat:'ALL', wh:'ALL', status:'ALL', search:'',
+  cat:'ALL', wh:'ALL', status:'ALL', noteFilter:'ALL', search:'',
   sortKey:'total_needed', sortDir:-1,
   selectedSku:null, targetDays:45, page:1, pageSize:100,
   data:[], catMap:{}, costMap:{}, modalFilter:'ALL', kmSet:null
@@ -1016,6 +1031,12 @@ function getFiltered(){
   if(S.status==='NOSALE') d=d.filter(p=>{
     const v=getWhView(p); return v && v.avg===0;
   });
+  if(S.noteFilter!=='ALL'){
+    const fn=loadForecastNotes();
+    if(S.noteFilter==='HAS_NOTE') d=d.filter(p=>fn[p.sku]?.text);
+    else if(S.noteFilter==='NO_NOTE') d=d.filter(p=>!fn[p.sku]?.text);
+    else d=d.filter(p=>{const t=fn[p.sku]?.text||''; return t.includes(S.noteFilter);});
+  }
   if(S.search){const q=S.search.toLowerCase();d=d.filter(p=>p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q));}
   // Sort by wh-specific values
   return [...d].sort((a,b)=>{
@@ -1035,6 +1056,7 @@ function getFiltered(){
 function setCat(v,el){S.cat=v;S.page=1;document.querySelectorAll('#cat-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add(el.dataset.active||'active');renderKPI();renderTable();}
 function setWh(v,el){S.wh=v;S.page=1;document.querySelectorAll('#wh-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add('active');renderTable();}
 function setStatus(v,el){S.status=v;S.page=1;document.querySelectorAll('#status-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add('active');renderTable();}
+function setNoteFilter(v,el){S.noteFilter=v;S.page=1;document.querySelectorAll('#note-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add('active');renderTable();}
 function setSearch(v){S.search=v;S.page=1;renderTable();}
 function sortBy(key){if(S.sortKey===key)S.sortDir*=-1;else{S.sortKey=key;S.sortDir=key==='name'||key==='sku'?1:-1;}renderTable();}
 function goPage(n){S.page=n;renderTable();}
@@ -1534,7 +1556,8 @@ function getForecastNoteBtn(sku, name) {
   // Xác định tag hiện tại
   const text = note?.text || '';
   let chip = '';
-  if (text.includes('🛒 Đã đặt hàng'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fef3c7;color:#d97706;margin-top:3px">🛒 Đã đặt hàng</span>';
+  if (text.includes('🔴 Cần nhập'))        chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fee2e2;color:#dc2626;margin-top:3px">🔴 Cần nhập</span>';
+  else if (text.includes('🛒 Đã đặt hàng'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fef3c7;color:#d97706;margin-top:3px">🛒 Đã đặt hàng</span>';
   else if (text.includes('🚚 Hàng đang về'))  chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dbeafe;color:#1d4ed8;margin-top:3px">🚚 Hàng đang về</span>';
   else if (text.includes('✅ Đã nhập kho')) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#dcfce7;color:#15803d;margin-top:3px">✅ Đã nhập kho</span>';
   else if (text.includes('⏸ Tạm hoãn nhập')) chip = '<span style="display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:2px 7px;border-radius:99px;background:#fee2e2;color:#dc2626;margin-top:3px">⏸ Tạm hoãn nhập</span>';
