@@ -40,7 +40,7 @@ body{height:100%;overflow:hidden;display:flex;flex-direction:column;font-family:
 /* ── CATEGORY MANAGER MODAL ── */
 .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:500;display:none;align-items:flex-start;justify-content:center;padding-top:60px;overflow-y:auto}
 .modal-overlay.open{display:flex}
-.modal{background:#fff;border-radius:14px;width:900px;max-width:95vw;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
+.modal{background:#fff;border-radius:14px;width:1100px;max-width:97vw;max-height:85vh;display:flex;flex-direction:column;overflow:hidden}
 .modal-head{padding:16px 20px;border-bottom:1px solid #f0efeb;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
 .modal-head h2{font-size:15px;font-weight:700}
 .modal-head p{font-size:11px;color:#888;margin-top:2px}
@@ -226,6 +226,12 @@ table{table-layout:fixed;width:100%}
 .surplus-table tr:hover td{background:#fafafa;cursor:pointer}
 .surplus-name{font-weight:500;font-size:12px;white-space:normal;word-break:break-word;line-height:1.35}
 .surplus-sku{font-family:monospace;font-size:10px;color:#888}
+.luong-badge{display:inline-block;font-size:9px;font-weight:700;padding:1px 5px;border-radius:3px;line-height:1.5;margin-top:2px;white-space:nowrap}
+.lb-1{background:#dbeafe;color:#1d4ed8}
+.lb-2{background:#fef9c3;color:#a16207}
+.lb-3{background:#ffedd5;color:#c2410c}
+.lb-4{background:#fef3c7;color:#92400e}
+.lb-5{background:#fee2e2;color:#b91c1c}
 .days-chip{display:inline-block;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700}
 .days-chip-red{background:#fee2e2;color:#dc2626}
 .days-chip-amber{background:#fef3c7;color:#d97706}
@@ -374,7 +380,7 @@ table{table-layout:fixed;width:100%}
     </div>
     <div class="modal-body">
       <table class="cat-table">
-        <thead><tr><th style="width:100px">Mã SKU</th><th>Tên sản phẩm</th><th style="width:130px;text-align:right">Giá vốn (đ)</th><th style="width:240px;text-align:center">Phân loại</th></tr></thead>
+        <thead><tr><th style="width:100px">Mã SKU</th><th>Tên sản phẩm</th><th style="width:130px;text-align:right">Giá vốn (đ)</th><th style="width:240px;text-align:center">Phân loại</th><th style="width:220px;text-align:center">Luồng thủ công</th></tr></thead>
         <tbody id="modal-tbody"></tbody>
       </table>
     </div>
@@ -433,6 +439,17 @@ table{table-layout:fixed;width:100%}
       <button class="fbtn" onclick="setNoteFilter('🔀 Điều chuyển kho',this)">🔀 Điều chuyển kho</button>
       <button class="fbtn" onclick="setNoteFilter('⏸ Tạm hoãn nhập',this)">⏸ Tạm hoãn nhập</button>
       <button class="fbtn" onclick="setNoteFilter('📋 Cần xem xét',this)">📋 Cần xem xét</button>
+    </div>
+  </div>
+  <div class="toolbar" style="margin-bottom:4px">
+    <span class="filter-label">Luồng:</span>
+    <div class="filter-group" id="luong-filter">
+      <button class="fbtn active" onclick="setLuongFilter('ALL',this)">Tất cả</button>
+      <button class="fbtn" onclick="setLuongFilter(1,this)" style="border-left:3px solid #3b82f6">L1 Bán chạy</button>
+      <button class="fbtn" onclick="setLuongFilter(2,this)" style="border-left:3px solid #eab308">L2 Bình thường</button>
+      <button class="fbtn" onclick="setLuongFilter(3,this)" style="border-left:3px solid #f97316">L3 Bán chậm</button>
+      <button class="fbtn" onclick="setLuongFilter(4,this)" style="border-left:3px solid #d97706">L4 Quà tặng</button>
+      <button class="fbtn" onclick="setLuongFilter(5,this)" style="border-left:3px solid #ef4444">L5 Không bán</button>
     </div>
   </div>
 </div>
@@ -514,6 +531,15 @@ table{table-layout:fixed;width:100%}
       <button class="fbtn" onclick="setSurplusStatus('noted',this)">📝 Có ghi chú</button>
       <button class="fbtn" onclick="setSurplusStatus('nonote',this)">— Chưa ghi chú</button>
       <button class="fbtn" onclick="setSurplusStatus('km',this)">🎁 Hàng KM</button>
+    </div>
+    <span class="filter-label" style="margin-left:8px">Luồng:</span>
+    <div class="filter-group" id="surplus-luong-filter">
+      <button class="fbtn active" onclick="setSurplusLuong('ALL',this)">Tất cả</button>
+      <button class="fbtn" onclick="setSurplusLuong(1,this)" style="border-left:3px solid #3b82f6">L1 Bán chạy</button>
+      <button class="fbtn" onclick="setSurplusLuong(2,this)" style="border-left:3px solid #eab308">L2 Bình thường</button>
+      <button class="fbtn" onclick="setSurplusLuong(3,this)" style="border-left:3px solid #f97316">L3 Bán chậm</button>
+      <button class="fbtn" onclick="setSurplusLuong(4,this)" style="border-left:3px solid #d97706">L4 Quà tặng</button>
+      <button class="fbtn" onclick="setSurplusLuong(5,this)" style="border-left:3px solid #ef4444">L5 Không bán</button>
     </div>
   </div>
 
@@ -662,11 +688,16 @@ const SALES_HIST = {"NK008":[202.0,534.0,158.0,795.0,232.0,220.0,281.0,186.0,370
 
 // ── STATE ────────────────────────────────────────────────────────────────────
 const S = {
-  cat:'ALL', wh:'ALL', status:'ALL', noteFilter:'ALL', search:'',
+  cat:'ALL', wh:'ALL', status:'ALL', noteFilter:'ALL', luongFilter:'ALL', search:'',
   sortKey:'total_needed', sortDir:-1,
   selectedSku:null, targetDays:45, page:1, pageSize:100,
   data:[], catMap:{}, costMap:{}, modalFilter:'ALL', kmSet:null
 };
+
+// Phân luồng sản phẩm: danh mục nào = Quà tặng (Luồng 4)
+const LUONG_GIFT_CATS = new Set(['QT','GIFT','QUATANG','QUTANG']);
+const LUONG_LABELS = {1:'L1 Bán chạy',2:'L2 Bình thường',3:'L3 Bán chậm',4:'L4 Quà tặng',5:'L5 Không bán'};
+let _cachedGlobalAvg = null; // reset khi sync xong
 
 // ── CATEGORY MAP (localStorage) ──────────────────────────────────────────────
 function loadCatMap() {
@@ -793,9 +824,23 @@ function getModalFiltered() {
 }
 function renderModalTable() {
   const rows = getModalFiltered();
-  const catLabel = {ANAN:'An An', HT:'Hệ thống', KHAC:'Khác'};
+  const map = loadManualLuong();
+  const LCOLORS = {1:'#dbeafe',2:'#fef9c3',3:'#ffedd5',4:'#fef3c7',5:'#fee2e2'};
+  const LTEXTS  = {1:'#1d4ed8',2:'#a16207',3:'#c2410c',4:'#92400e',5:'#b91c1c'};
+  const LLABELS = {1:'L1',2:'L2',3:'L3',4:'L4',5:'L5'};
   document.getElementById('modal-tbody').innerHTML = rows.map(p => {
     const cost = getCost(p.sku);
+    const manL = map[p.sku] ?? null;
+    const luongBtns = [1,2,3,4,5].map(n => {
+      const active = manL === n;
+      const bg  = active ? LCOLORS[n] : '#f3f3f1';
+      const col = active ? LTEXTS[n]  : '#aaa';
+      const brd = active ? `2px solid ${LTEXTS[n]}` : '1px solid #e0e0e0';
+      return `<button onclick="setManualLuong('${p.sku}',${n})" style="font-size:10px;font-weight:700;padding:3px 8px;border-radius:4px;border:${brd};background:${bg};color:${col};cursor:pointer">${LLABELS[n]}</button>`;
+    }).join('');
+    const clearBtn = manL !== null
+      ? `<button onclick="setManualLuong('${p.sku}',null);renderModalTable()" title="Xoá gán thủ công" style="font-size:10px;padding:3px 6px;border-radius:4px;border:1px solid #e0e0e0;background:#fff;color:#bbb;cursor:pointer">✕</button>`
+      : '';
     return `
     <tr>
       <td class="sku-mono">${p.sku}</td>
@@ -820,6 +865,11 @@ function renderModalTable() {
               ${isKM(p.sku)?'🎁 Hàng KM':'🎁 Đánh dấu KM'}
             </button>
           </div>
+        </div>
+      </td>
+      <td style="text-align:center;vertical-align:middle">
+        <div style="display:flex;gap:3px;justify-content:center;flex-wrap:wrap">
+          ${luongBtns}${clearBtn}
         </div>
       </td>
     </tr>`;
@@ -1040,6 +1090,9 @@ function getFiltered(){
     else if(S.noteFilter==='NO_NOTE') d=d.filter(p=>!fn[p.sku]?.text);
     else d=d.filter(p=>{const t=fn[p.sku]?.text||''; return t.includes(S.noteFilter);});
   }
+  if(S.luongFilter!=='ALL') d=d.filter(p=>getManualLuong(p)===S.luongFilter);
+  // Ẩn hàng Quà tặng (L4) khi hết hàng
+  d=d.filter(p=>!(getLuong(p)===4 && p.total_stock===0));
   if(S.search){const q=S.search.toLowerCase();d=d.filter(p=>p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q));}
   // Sort by wh-specific values
   return [...d].sort((a,b)=>{
@@ -1060,9 +1113,45 @@ function setCat(v,el){S.cat=v;S.page=1;document.querySelectorAll('#cat-filter .f
 function setWh(v,el){S.wh=v;S.page=1;document.querySelectorAll('#wh-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add('active');renderTable();}
 function setStatus(v,el){S.status=v;S.page=1;document.querySelectorAll('#status-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add('active');renderTable();}
 function setNoteFilter(v,el){S.noteFilter=v;S.page=1;document.querySelectorAll('#note-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add('active');renderTable();}
+function setLuongFilter(v,el){S.luongFilter=v;S.page=1;document.querySelectorAll('#luong-filter .fbtn').forEach(b=>b.className='fbtn');el.classList.add('active');renderTable();}
 function setSearch(v){S.search=v;S.page=1;renderTable();}
 function sortBy(key){if(S.sortKey===key)S.sortDir*=-1;else{S.sortKey=key;S.sortDir=key==='name'||key==='sku'?1:-1;}renderTable();}
 function goPage(n){S.page=n;renderTable();}
+
+// ── PHÂN LUỒNG ────────────────────────────────────────────────────────────────
+function getGlobalAvg() {
+  if (_cachedGlobalAvg !== null) return _cachedGlobalAvg;
+  const vals = S.data.map(p => {
+    const v = getWhView(p);
+    return v ? (v.avg || 0) : 0;
+  }).filter(a => a > 0);
+  _cachedGlobalAvg = vals.length ? vals.reduce((a,b)=>a+b,0) / vals.length : 1;
+  return _cachedGlobalAvg;
+}
+
+function getManualLuong(p) {
+  const v = loadManualLuong()[p.sku];
+  return (v >= 1 && v <= 5) ? v : null;
+}
+
+function getLuong(p) {
+  const manual = loadManualLuong()[p.sku];
+  if (manual >= 1 && manual <= 5) return manual;
+  const cat = (p.cat||'').toUpperCase();
+  if (LUONG_GIFT_CATS.has(cat) || isKM(p.sku)) return 4;
+  const v = getWhView(p);
+  const avg = v ? (v.avg || 0) : 0;
+  if (avg === 0) return 5;
+  const ga = getGlobalAvg();
+  if (avg > ga * 1.5) return 1;
+  if (avg >= ga * 0.7) return 2;
+  return 3;
+}
+
+function luongBadge(luong) {
+  const labels = {1:'L1 Bán chạy',2:'L2 Bình thường',3:'L3 Bán chậm',4:'L4 Quà tặng',5:'L5 Không bán'};
+  return `<span class="luong-badge lb-${luong}">${labels[luong]||''}</span>`;
+}
 
 // ── RENDER ───────────────────────────────────────────────────────────────────
 function catBadge(cat){
@@ -1110,7 +1199,7 @@ function renderTable(){
       const needTd=v.needed>0?`<td class="need-cell">+${v.needed.toLocaleString('vi')}</td>`:`<td class="need-ok">Đủ hàng</td>`;
       const whCol=S.wh==='ALL'?whBadges(p):`<span style="display:inline-flex;flex-direction:column;align-items:center;font-size:11px;color:#555;font-weight:600;line-height:1.3">${S.wh}<span style="font-size:9px;font-weight:400;color:#aaa">${(p.warehouses[S.wh]?.stock??0).toLocaleString('vi')}</span></span>`;
       return `<tr class="${sel}" onclick="selectProduct('${p.sku}')">
-        <td class="sku-cell"><span class="status-dot ${dot}"></span>${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}</td>
+        <td class="sku-cell"><span class="status-dot ${dot}"></span>${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}${(()=>{const ml=getManualLuong(p);return ml?'<br>'+luongBadge(ml):'';})()}</td>
         <td class="name-cell" title="${p.name}">${p.name}${catBadge(p.cat)}</td>
         <td>${whCol}</td>
         <td class="num-cell">${(()=>{
@@ -1214,16 +1303,16 @@ function exportCSV(){
 // ── TAB SWITCH ────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   const isForecast = tab === 'forecast';
-  document.getElementById('tab-forecast').className = 'tab-btn' + (isForecast?' active':'');
-  document.getElementById('tab-surplus').className = 'tab-btn' + (!isForecast?' active':'');
-  document.querySelector('.kpi-row').style.display = isForecast ? '' : 'none';
+  document.getElementById('tab-forecast').className = 'tab-btn' + (isForecast ? ' active' : '');
+  document.getElementById('tab-surplus').className  = 'tab-btn' + (!isForecast ? ' active' : '');
+  document.querySelector('.kpi-row').style.display    = isForecast ? '' : 'none';
   document.getElementById('filter-bar').style.display = isForecast ? '' : 'none';
   document.querySelector('.main-layout').style.display = isForecast ? '' : 'none';
   const surplusTab = document.getElementById('surplus-tab');
-  surplusTab.style.display = isForecast ? 'none' : 'flex';
-  surplusTab.style.flex = isForecast ? '' : '1';
+  surplusTab.style.display   = isForecast ? 'none' : 'flex';
+  surplusTab.style.flex      = isForecast ? '' : '1';
   surplusTab.style.minHeight = isForecast ? '' : '0';
-  surplusTab.style.overflow = isForecast ? '' : 'hidden';
+  surplusTab.style.overflow  = isForecast ? '' : 'hidden';
   if (!isForecast) { renderSurplus(); setTimeout(loadSurplusColWidths, 50); }
 }
 
@@ -1235,7 +1324,7 @@ function switchSurplusSubTab(n) {
 }
 
 // ── SURPLUS STATE ─────────────────────────────────────────────────────────────
-const SS = { wh:'ALL', cat:'ALL', search:'', noteStatus:'ALL',
+const SS = { wh:'ALL', cat:'ALL', search:'', noteStatus:'ALL', luong:'ALL',
   sort1:{key:'days',dir:-1}, sort2:{key:'stock',dir:-1} };
 
 function setSurplusWh(v,el) {
@@ -1252,6 +1341,10 @@ function setSurplusStatus(v,el) {
   document.querySelectorAll('#surplus-status-filter .fbtn').forEach(b=>b.className='fbtn');
   el.classList.add('active');
   renderSurplus();
+}
+function setSurplusLuong(v,el) {
+  SS.luong=v; document.querySelectorAll('#surplus-luong-filter .fbtn').forEach(b=>b.className='fbtn');
+  el.classList.add('active'); renderSurplus();
 }
 function getSurplusDataAll() {
   // Same as getSurplusData but without noteStatus filter — for KPI counts
@@ -1284,7 +1377,7 @@ function sortSurplus(grp, key) {
 }
 
 function getSurplusData() {
-  let d = S.data;
+  let d = S.data.filter(p=>!(getLuong(p)===4 && p.total_stock===0));
   if(SS.cat!=='ALL') d=d.filter(p=>p.cat===SS.cat);
   if(SS.search){const q=SS.search.toLowerCase();d=d.filter(p=>p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q));}
 
@@ -1328,7 +1421,8 @@ function getSurplusData() {
 
   sortFn(group1, SS.sort1);
   sortFn(group2, SS.sort2);
-  return {group1: filterByStatus(group1), group2: filterByStatus(group2)};
+  const filterByLuong = (arr) => SS.luong==='ALL' ? arr : arr.filter(p=>getLuong(p)===SS.luong);
+  return {group1: filterByLuong(filterByStatus(group1)), group2: filterByLuong(filterByStatus(group2))};
 }
 
 function whMini(whs) {
@@ -1370,7 +1464,7 @@ function renderSurplus() {
   };
   document.getElementById('surplus-tbody-1').innerHTML = group1.length ? group1.map(p=>`
     <tr onclick="switchTab('forecast');setTimeout(()=>selectProduct('${p.sku}'),100)">
-      <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}</td>
+      <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}<br>${luongBadge(getLuong(p))}</td>
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
       <td>${whMini(p._whs)}</td>
       <td style="text-align:center;font-family:monospace">${p._avg}</td>
@@ -1386,7 +1480,7 @@ function renderSurplus() {
   document.getElementById('s2-count').textContent = group2.length;
   document.getElementById('surplus-tbody-2').innerHTML = group2.length ? group2.map(p=>`
     <tr onclick="switchTab('forecast');setTimeout(()=>selectProduct('${p.sku}'),100)">
-      <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}</td>
+      <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}<br>${luongBadge(getLuong(p))}</td>
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
       <td>${whMini(p._whs)}</td>
       <td style="text-align:center;font-family:monospace;font-weight:600">${p._stock.toLocaleString('vi')}</td>
@@ -1412,6 +1506,83 @@ function loadForecastNotes() {
 }
 function saveForecastNotes(notes) {
   try { localStorage.setItem('forecast_notes', JSON.stringify(notes)); } catch(e){}
+}
+
+// ── PHÂN LUỒNG THỦ CÔNG ───────────────────────────────────────────────────────
+const LT = { autoFilter:'ALL', manualFilter:'ALL' };
+
+function loadManualLuong() {
+  try { return JSON.parse(localStorage.getItem('manual_luong')||'{}'); } catch(e){ return {}; }
+}
+function saveManualLuong(map) {
+  try { localStorage.setItem('manual_luong', JSON.stringify(map)); } catch(e){}
+}
+
+function setManualLuong(sku, luong) {
+  const map = loadManualLuong();
+  if (luong === null) { delete map[sku]; } else { map[sku] = luong; }
+  saveManualLuong(map);
+  saveManualLuongToSheet(sku, luong);
+  renderModalTable();
+  renderAll();
+}
+
+function setLTFilter(type, val, el) {
+  if (type === 'auto') {
+    LT.autoFilter = val;
+    document.querySelectorAll('#lt-auto-filter .fbtn').forEach(b=>b.className='fbtn');
+  } else {
+    LT.manualFilter = val;
+    document.querySelectorAll('#lt-manual-filter .fbtn').forEach(b=>b.className='fbtn');
+  }
+  el.classList.add('active');
+  renderLuongTab();
+}
+
+function renderLuongTab() {
+  const map = loadManualLuong();
+  const q = (document.getElementById('lt-search')?.value||'').toLowerCase();
+  let data = S.data.filter(p => {
+    if (q && !p.sku.toLowerCase().includes(q) && !p.name.toLowerCase().includes(q)) return false;
+    const autoL = getLuong(p);
+    if (LT.autoFilter !== 'ALL' && autoL !== LT.autoFilter) return false;
+    const manL = map[p.sku] ?? null;
+    if (LT.manualFilter === 'SET'  && manL === null) return false;
+    if (LT.manualFilter === 'NONE' && manL !== null) return false;
+    if (typeof LT.manualFilter === 'number' && manL !== LT.manualFilter) return false;
+    return true;
+  });
+
+  const LCOLORS = {
+    1:'#dbeafe', 2:'#fef9c3', 3:'#ffedd5', 4:'#fef3c7', 5:'#fee2e2'
+  };
+  const LTEXTS = {
+    1:'#1d4ed8', 2:'#a16207', 3:'#c2410c', 4:'#92400e', 5:'#b91c1c'
+  };
+  const LLABELS = {1:'L1 Bán chạy',2:'L2 Bình thường',3:'L3 Bán chậm',4:'L4 Quà tặng',5:'L5 Không bán'};
+
+  document.getElementById('luong-tbody').innerHTML = data.length ? data.map(p => {
+    const autoL = getLuong(p);
+    const manL  = map[p.sku] ?? null;
+    const autoBadge = `<span style="display:inline-block;font-size:10px;font-weight:700;padding:2px 8px;border-radius:4px;background:${LCOLORS[autoL]};color:${LTEXTS[autoL]}">${LLABELS[autoL]}</span>`;
+    const btns = [1,2,3,4,5].map(n => {
+      const active = manL === n;
+      const bg = active ? LCOLORS[n] : '#f8f8f6';
+      const col = active ? LTEXTS[n] : '#aaa';
+      const border = active ? `2px solid ${LTEXTS[n]}` : '1px solid #e0e0e0';
+      return `<button onclick="setManualLuong('${p.sku}',${n})" style="font-size:10px;font-weight:700;padding:3px 9px;border-radius:4px;border:${border};background:${bg};color:${col};cursor:pointer;margin:0 2px">L${n}</button>`;
+    }).join('');
+    const clearBtn = manL !== null ? `<button onclick="setManualLuong('${p.sku}',null)" title="Xoá gán thủ công" style="font-size:10px;padding:3px 7px;border-radius:4px;border:1px solid #e0e0e0;background:#fff;color:#bbb;cursor:pointer;margin:0 2px">✕</button>` : '';
+    return `<tr style="border-bottom:1px solid #f0efeb">
+      <td style="padding:8px 12px;font-family:monospace;font-size:11px;color:#888;vertical-align:middle">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}</td>
+      <td style="padding:8px 12px;font-size:12px;vertical-align:middle">${p.name}${catBadge(p.cat)}</td>
+      <td style="padding:8px 12px;text-align:center;vertical-align:middle">${autoBadge}</td>
+      <td style="padding:8px 12px;text-align:center;vertical-align:middle">${btns}${clearBtn}</td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="4" style="text-align:center;padding:32px;color:#bbb">Không có sản phẩm phù hợp</td></tr>';
+
+  const total = data.length, assigned = data.filter(p=>map[p.sku]!=null).length;
+  document.getElementById('lt-footer').textContent = `${total} sản phẩm · ${assigned} đã gán luồng thủ công`;
 }
 
 function _openNoteModal(sku, name, type) {
@@ -1898,6 +2069,28 @@ async function deleteNoteFromSheet(sku) {
   } catch(e) { console.warn('Lỗi xóa ghi chú:', e.message); }
 }
 
+async function saveManualLuongToSheet(sku, luong) {
+  if (!_accessToken || Date.now() >= _tokenExpiry) return;
+  try {
+    const data = await readNotesFromSheet();
+    const rows = data.values || [];
+    let rowIdx = -1;
+    for (let i = 1; i < rows.length; i++) {
+      if ((rows[i][0]||'') === sku) { rowIdx = i + 1; break; }
+    }
+    const val = luong !== null ? String(luong) : '';
+    if (rowIdx > 0) {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent(`Ghi chú!I${rowIdx}`)}?valueInputOption=RAW`;
+      await fetch(url, { method:'PUT', headers:{'Authorization':'Bearer '+_accessToken,'Content-Type':'application/json'}, body:JSON.stringify({values:[[val]]}) });
+    } else if (val) {
+      // Hàng mới: tạo với SKU + cột I
+      const newRow = rows.length + 1;
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent(`Ghi chú!A${newRow}:I${newRow}`)}?valueInputOption=RAW`;
+      await fetch(url, { method:'PUT', headers:{'Authorization':'Bearer '+_accessToken,'Content-Type':'application/json'}, body:JSON.stringify({values:[[sku,'','','','','','','',val]]}) });
+    }
+  } catch(e) { console.warn('saveManualLuongToSheet:', e.message); }
+}
+
 async function saveForecastNoteToSheet(sku, text) {
   if (!_accessToken || Date.now() >= _tokenExpiry) return;
   try {
@@ -1961,7 +2154,7 @@ async function pushCatRowToSheet(sku) {
 async function readNotesFromSheet() {
   if (!_accessToken || Date.now() >= _tokenExpiry) return { values: [] };
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A:H')}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A:I')}`;
     const res = await fetch(url, { headers: { 'Authorization': 'Bearer '+_accessToken } });
     if (!res.ok) return { values: [] };
     return await res.json();
@@ -1975,6 +2168,7 @@ async function pushAllNotesToSheet() {
   // Gộp ghi chú + phân loại + ghi chú dự báo vào 1 lần push
   const notes = loadNotes();
   const forecastNotes = loadForecastNotes();
+  const manualLuongMap = loadManualLuong();
   const catMap = S.catMap || loadCatMap();
   const kmSet = S.kmSet || loadKMSet();
   const costMap = S.costMap || loadCostMap();
@@ -1982,6 +2176,7 @@ async function pushAllNotesToSheet() {
   const allSkus = new Set([
     ...Object.keys(notes).filter(s => notes[s]?.text),
     ...Object.keys(forecastNotes).filter(s => forecastNotes[s]?.text),
+    ...Object.keys(manualLuongMap),
     ...Object.keys(catMap).filter(s => catMap[s] && catMap[s] !== 'KHAC'),
     ...[...kmSet],
     ...Object.keys(costMap).filter(s => costMap[s] > 0)
@@ -2013,11 +2208,12 @@ async function pushAllNotesToSheet() {
       const isKm = kmSet.has(sku) ? 'TRUE' : '';
       const cost = costMap[sku] || '';
       const forecastText = forecastNotes[sku]?.text || '';
+      const manualL = manualLuongMap[sku] || '';
       const rowIdx = existMap[sku] || nextRow;
       if (!existMap[sku]) { existMap[sku] = nextRow; nextRow++; }
       requests.push({
-        range: `Ghi chú!A${rowIdx}:H${rowIdx}`,
-        values: [[sku, noteText, status, updated, cat, isKm, cost, forecastText]]
+        range: `Ghi chú!A${rowIdx}:I${rowIdx}`,
+        values: [[sku, noteText, status, updated, cat, isKm, cost, forecastText, manualL]]
       });
     }
     const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values:batchUpdate`;
@@ -2048,6 +2244,7 @@ async function syncNotesFromSheet() {
   if (rows.length <= 1) return;
   const notes = loadNotes();
   const forecastNotes = loadForecastNotes();
+  const manualLuongMap = loadManualLuong();
   if (!S.kmSet) S.kmSet = loadKMSet();
   if (!S.costMap) S.costMap = loadCostMap();
   let noteCount = 0, catCount = 0, costCount = 0, forecastCount = 0;
@@ -2059,6 +2256,7 @@ async function syncNotesFromSheet() {
     const isKm         = (rows[i][5]||'').toUpperCase() === 'TRUE';
     const cost         = parseFloat(rows[i][6]||'') || 0;
     const forecastText = rows[i][7]||'';
+    const manualLuong  = parseInt(rows[i][8]||'') || null;
     if (!sku) continue;
     if (text) { notes[sku] = { text, updated }; noteCount++; }
     else { delete notes[sku]; }
@@ -2069,9 +2267,12 @@ async function syncNotesFromSheet() {
     else if (rows[i].length > 6) delete S.costMap[sku];
     if (forecastText) { forecastNotes[sku] = { text: forecastText, updated }; forecastCount++; }
     else { delete forecastNotes[sku]; }
+    if (manualLuong >= 1 && manualLuong <= 5) { manualLuongMap[sku] = manualLuong; }
+    // Nếu sheet chưa có dữ liệu cột I → giữ nguyên giá trị local, không xoá
   }
   saveNotes(notes);
   saveForecastNotes(forecastNotes);
+  saveManualLuong(manualLuongMap);
   saveCatMap();
   saveKMSet(S.kmSet);
   saveCostMap();
@@ -2107,18 +2308,19 @@ async function initNotesHeader() {
     const needsCatCol = rows.length > 0 && (rows[0][4]||'') !== 'Phân loại';
     const needsCostCol = rows.length > 0 && (rows[0][6]||'') !== 'Giá vốn';
     const needsForecastCol = rows.length > 0 && (rows[0][7]||'') !== 'Ghi chú dự báo';
-    if (needsHeader || needsCatCol || needsCostCol || needsForecastCol) {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A1:H1')}?valueInputOption=RAW`;
+    const needsLuongCol    = rows.length > 0 && (rows[0][8]||'') !== 'Luồng thủ công';
+    if (needsHeader || needsCatCol || needsCostCol || needsForecastCol || needsLuongCol) {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A1:I1')}?valueInputOption=RAW`;
       await fetch(url, {
         method: 'PUT',
         headers: { 'Authorization': 'Bearer '+_accessToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [['SKU', 'Ghi chú', 'Trạng thái', 'Cập nhật lần cuối', 'Phân loại', 'isKM', 'Giá vốn', 'Ghi chú dự báo']] })
+        body: JSON.stringify({ values: [['SKU', 'Ghi chú', 'Trạng thái', 'Cập nhật lần cuối', 'Phân loại', 'isKM', 'Giá vốn', 'Ghi chú dự báo', 'Luồng thủ công']] })
       });
     }
   } catch(e) { console.warn('initNotesHeader:', e.message); }
 }
 
-function renderAll(){renderKPI();renderTable();renderAlerts();}
+function renderAll(){_cachedGlobalAvg=null;renderKPI();renderTable();renderAlerts();}
 
 // ── FIXED HEADER CLONE (100% reliable, works regardless of CSS overflow) ────────
 function setupFixedHeader(){
