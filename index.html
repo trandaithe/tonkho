@@ -456,8 +456,8 @@ table{table-layout:fixed;width:100%}
 
 <!-- ── TABS + KPI + FILTERS (sticky zone) ── -->
 <div id="tabs-bar" style="background:#fff;border-bottom:1px solid #e5e5e0;padding:0 20px;display:flex;gap:0;">
-  <button class="tab-btn" id="tab-overview" onclick="switchTab('overview')">📈 Tổng quan</button>
-  <button class="tab-btn active" id="tab-forecast" onclick="switchTab('forecast')">📊 Dự báo nhập hàng</button>
+  <button class="tab-btn active" id="tab-overview" onclick="switchTab('overview')">📈 Tổng quan</button>
+  <button class="tab-btn" id="tab-forecast" onclick="switchTab('forecast')">📊 Dự báo nhập hàng</button>
   <button class="tab-btn" id="tab-surplus" onclick="switchTab('surplus')">🔴 Tồn dư cần đẩy</button>
 </div>
 <div class="kpi-row" id="kpi-row"></div>
@@ -514,6 +514,10 @@ table{table-layout:fixed;width:100%}
       <button class="fbtn" onclick="setLuongFilter(5,this)" style="border-left:3px solid #ef4444">L5 Không bán</button>
     </div>
   </div>
+  <div class="toolbar" style="margin-bottom:4px" id="brand-filter-forecast-row">
+    <span class="filter-label">Nhãn hàng:</span>
+    <div class="filter-group" id="brand-filter-forecast"><button class="fbtn active" onclick="setBrandFilter('ALL')">Tất cả</button></div>
+  </div>
 </div>
 
 <!-- ── MAIN ── -->
@@ -558,6 +562,10 @@ table{table-layout:fixed;width:100%}
 
 <!-- ── OVERVIEW TAB ── -->
 <div id="overview-tab">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid #e5e5e0;margin-bottom:10px;flex-shrink:0">
+    <span class="filter-label">Nhãn hàng:</span>
+    <div class="filter-group" id="brand-filter-overview"><button class="fbtn active" onclick="setBrandFilter('ALL')">Tất cả</button></div>
+  </div>
   <div id="ov-brand-cards-row" class="ov-brand-cards"></div>
   <div class="ov-charts-grid">
     <div class="ov-chart-card">
@@ -658,6 +666,8 @@ table{table-layout:fixed;width:100%}
       <button class="fbtn" onclick="setSurplusLuong(4,this)" style="border-left:3px solid #d97706">L4 Quà tặng</button>
       <button class="fbtn" onclick="setSurplusLuong(5,this)" style="border-left:3px solid #ef4444">L5 Không bán</button>
     </div>
+    <span class="filter-label" style="margin-left:8px">Nhãn hàng:</span>
+    <div class="filter-group" id="brand-filter-surplus"><button class="fbtn active" onclick="setBrandFilter('ALL')">Tất cả</button></div>
   </div>
 
   <!-- Sub-tab bar -->
@@ -809,7 +819,8 @@ const S = {
   cat:'ALL', wh:'ALL', status:'ALL', noteFilter:'ALL', luongFilter:'ALL', search:'',
   sortKey:'total_needed', sortDir:-1,
   selectedSku:null, targetDays:45, page:1, pageSize:100,
-  data:[], catMap:{}, costMap:{}, modalFilter:'ALL', kmSet:null
+  data:[], catMap:{}, costMap:{}, modalFilter:'ALL', kmSet:null,
+  activeBrand:'ALL'
 };
 
 // Phân luồng sản phẩm: danh mục nào = Quà tặng (Luồng 4)
@@ -1028,6 +1039,8 @@ function init() {
 
   renderAll();
   requestAnimationFrame(setupFixedHeader);
+  renderBrandFilterUI();
+  setTimeout(() => switchTab('overview'), 50);
 }
 
 function mergeSalesAvg(p) {
@@ -1192,6 +1205,7 @@ function getWhView(p) {
 function getFiltered(){
   let d=S.data;
   if(S.cat!=='ALL') d=d.filter(p=>p.cat===S.cat);
+  if(S.activeBrand!=='ALL'){const bm=loadBrandMap();d=d.filter(p=>bm[p.sku]===S.activeBrand);}
   if(S.wh!=='ALL') d=d.filter(p=>{
     const w=p.warehouses[S.wh];
     return w !== undefined; // show all products that exist in this warehouse
@@ -1508,6 +1522,7 @@ function sortSurplus(grp, key) {
 function getSurplusData() {
   let d = S.data.filter(p=>!(getLuong(p)===4 && p.total_stock===0));
   if(SS.cat!=='ALL') d=d.filter(p=>p.cat===SS.cat);
+  if(S.activeBrand!=='ALL'){const bm=loadBrandMap();d=d.filter(p=>bm[p.sku]===S.activeBrand);}
   if(SS.search){const q=SS.search.toLowerCase();d=d.filter(p=>p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q));}
 
   const getWh = (p) => {
@@ -2488,6 +2503,29 @@ function saveBrandList(arr) {
 }
 
 let _selectedBrand = null;
+
+// ── BRAND FILTER (dùng chung 3 tab) ──────────────────────────────────────────
+function renderBrandFilterUI() {
+  const brands = loadBrandList();
+  const cur = S.activeBrand;
+  ['brand-filter-forecast','brand-filter-surplus','brand-filter-overview'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const allBtn = `<button class="fbtn ${cur==='ALL'?'active':''}" onclick="setBrandFilter('ALL')">Tất cả</button>`;
+    const brandBtns = brands.map(b => {
+      const bj = JSON.stringify(b);
+      return `<button class="fbtn ${cur===b?'active':''}" onclick='setBrandFilter(${bj})'>${b}</button>`;
+    }).join('');
+    el.innerHTML = allBtn + brandBtns;
+  });
+}
+function setBrandFilter(v) {
+  S.activeBrand = v;
+  renderBrandFilterUI();
+  renderKPI(); renderTable();
+  if (document.getElementById('surplus-tab').style.display !== 'none') renderSurplus();
+  if (document.getElementById('overview-tab').style.display !== 'none') setTimeout(renderOverviewTab, 50);
+}
 let _ovCharts = {};
 
 function openBrandManager() {
@@ -2520,6 +2558,7 @@ function createBrand() {
   _selectedBrand = name;
   renderBrandList();
   renderBrandSkus(name);
+  renderBrandFilterUI();
   document.getElementById('brand-save-info').textContent = `Đã tạo nhãn "${name}" ✓`;
 }
 
@@ -2531,7 +2570,9 @@ function deleteBrand(name) {
   const brands = loadBrandList().filter(b => b !== name);
   saveBrandList(brands);
   if (_selectedBrand === name) _selectedBrand = null;
+  if (S.activeBrand === name) { S.activeBrand = 'ALL'; }
   renderBrandList();
+  renderBrandFilterUI();
   document.getElementById('brand-sku-content').innerHTML =
     '<div style="padding:50px;text-align:center;color:#bbb;font-size:13px">← Chọn nhãn hàng để quản lý SKU</div>';
   document.getElementById('brand-save-info').textContent = `Đã xoá nhãn "${name}"`;
@@ -2659,11 +2700,16 @@ function renderOverviewTab() {
   const brandMap  = loadBrandMap();
   const UNBRANDED = '(Chưa phân nhãn)';
 
+  // Lọc data theo nhãn hàng đang chọn (nếu có)
+  const baseData = S.activeBrand === 'ALL'
+    ? S.data
+    : S.data.filter(p => brandMap[p.sku] === S.activeBrand);
+
   // Group SKUs by brand
   const brandProds = {};
   brandList.forEach(b => brandProds[b] = []);
   brandProds[UNBRANDED] = [];
-  S.data.forEach(p => {
+  baseData.forEach(p => {
     const b = brandMap[p.sku];
     if (b && brandProds[b] !== undefined) brandProds[b].push(p);
     else brandProds[UNBRANDED].push(p);
@@ -2931,15 +2977,22 @@ function renderSalesCompare() {
     return `<span style="color:#aaa">${pct >= 0?'+':''}${pct}%</span>`;
   };
 
-  // Gộp tất cả SKU từ inventory + data bán hàng
-  const allSkus = S.data.map(p => {
+  // Gộp tất cả SKU từ inventory + data bán hàng (lọc theo nhãn hàng nếu chọn)
+  const _bm = loadBrandMap();
+  const baseInventory = S.activeBrand === 'ALL'
+    ? S.data
+    : S.data.filter(p => _bm[p.sku] === S.activeBrand);
+  const allSkus = baseInventory.map(p => {
     const sd = salesMap[p.sku] || [0,0,0,0];
     const total = sd.reduce((a,b)=>a+b,0);
     return { sku: p.sku, name: p.name, cat: p.cat, data: sd, total };
   }).sort((a,b) => b.total - a.total);  // sắp theo tổng bán giảm dần
 
-  // Tổng theo tháng (từ tất cả SKU trong kho, nhưng chỉ tính SKU có trong report)
-  const colTotals = [0,1,2,3].map(i => D.skus.reduce((a,s)=>a+s.data[i],0));
+  // Tổng theo tháng (lọc theo nhãn nếu có)
+  const filteredSalesSkus = S.activeBrand === 'ALL'
+    ? D.skus
+    : D.skus.filter(s => _bm[s.sku] === S.activeBrand);
+  const colTotals = [0,1,2,3].map(i => filteredSalesSkus.reduce((a,s)=>a+s.data[i],0));
 
   // Tính max mỗi tháng để vẽ bar
   const maxPerMonth = [0,1,2,3].map(i => Math.max(...allSkus.map(s=>s.data[i]), 1));
@@ -3182,6 +3235,7 @@ async function doSync() {
     document.getElementById('connect-bar').style.display='none';
     if(detailEl) detailEl.textContent='';
     renderAll();
+    renderBrandFilterUI();
   } else {
     if(!useOAuth && errorWhs.length===4){
       setStatus2('⚠ Chưa publish sheet. Nhấn "Kết nối Sheet" để đăng nhập Google.');
