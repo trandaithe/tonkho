@@ -567,6 +567,27 @@ table{table-layout:fixed;width:100%}
     <div class="filter-group" id="brand-filter-overview"><button class="fbtn active" onclick="setBrandFilter('ALL')">Tất cả</button></div>
   </div>
   <div id="ov-brand-cards-row" class="ov-brand-cards"></div>
+
+  <!-- ── TỒN KHO THEO KHO ── -->
+  <div style="border-top:2px solid #e5e5e0;padding-top:14px;margin-top:10px;margin-bottom:4px;flex-shrink:0">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:10px">🏭 Tồn kho theo từng kho</div>
+    <!-- 4 thẻ KPI kho -->
+    <div id="ov-wh-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px"></div>
+    <!-- 2 biểu đồ stacked: số lượng + giá trị -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+      <div class="ov-chart-card" style="margin-bottom:0">
+        <div class="ov-chart-title">Số lượng tồn theo kho &amp; nhãn</div>
+        <div class="ov-chart-sub">Stacked — đơn vị: sản phẩm</div>
+        <div style="height:230px;position:relative"><canvas id="chart-wh-brand"></canvas></div>
+      </div>
+      <div class="ov-chart-card" style="margin-bottom:0">
+        <div class="ov-chart-title">Giá trị tồn theo kho &amp; nhãn</div>
+        <div class="ov-chart-sub">Stacked — tính theo giá vốn đã nhập</div>
+        <div style="height:230px;position:relative"><canvas id="chart-wh-value"></canvas></div>
+      </div>
+    </div>
+  </div>
+
   <div class="ov-charts-grid">
     <div class="ov-chart-card">
       <div class="ov-chart-title">Tổng tồn kho theo nhãn hàng</div>
@@ -1037,6 +1058,7 @@ function init() {
     });
   }
 
+  initSalesAvgFromStaticData(); // Lấp đầy SALES_AVG cho 43 SKU từ SALES_COMPARE_DATA
   renderAll();
   requestAnimationFrame(setupFixedHeader);
   renderBrandFilterUI();
@@ -1151,6 +1173,30 @@ function handleSyncClick() {
 }
 
 // (hàm doSync() cũ đã bị xóa — dùng doSync() ở phía dưới có hỗ trợ OAuth + tổng hợp tồn)
+
+// Dùng SALES_COMPARE_DATA làm fallback SALES_AVG cho SKU không có trong sheet tháng
+// Báo cáo sheet chỉ theo dõi 11 SKU top — hàm này lấp đầy cho các SKU còn lại
+function initSalesAvgFromStaticData() {
+  const D = SALES_COMPARE_DATA;
+  // Số ngày thực tế của từng tháng T01–T04/2026
+  // T04: chỉ tính đến 22/04 (T04_DAYS_DONE); T01,T02,T03: cả tháng
+  const DAYS = [31, 28, 31, 22];
+  D.skus.forEach(s => {
+    if (SALES_AVG[s.sku] > 0) return; // đã có từ parseSalesCSV → bỏ qua
+    // Tính daily rate từng tháng
+    const rates = s.data.map((total, i) =>
+      total > 0 && DAYS[i] > 0 ? total / DAYS[i] : null
+    ).filter(v => v !== null);
+    if (rates.length === 0) return;
+    // Lấy median của các tháng có bán
+    const sorted = [...rates].sort((a,b) => a-b);
+    const mid = Math.floor(sorted.length/2);
+    const median = sorted.length%2===1 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2;
+    SALES_AVG[s.sku] = Math.round(median * 10) / 10;
+    // History: dùng monthly totals làm proxy (newest first, bỏ tháng = 0)
+    SALES_HIST[s.sku] = [...s.data].reverse().filter(v => v > 0).slice(0, 4);
+  });
+}
 
 function parseSalesCSV(text, avgOut, histOut) {
   // Parse sales CSV: row 1=dates, row 2=channels, row 3=SL/DS, data from row 4
@@ -2756,7 +2802,7 @@ function renderOverviewTab() {
   const colors = stats.map(s => s.color);
 
   // Destroy old charts
-  ['chart-stock','chart-days','chart-value','chart-luong'].forEach(id => {
+  ['chart-stock','chart-days','chart-value','chart-luong','chart-wh-brand','chart-wh-value'].forEach(id => {
     if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
   });
 
@@ -2802,6 +2848,128 @@ function renderOverviewTab() {
       scales: { x: { stacked:true }, y: { stacked:true, beginAtZero:true } }
     }
   });
+
+  // ── Tồn kho theo kho ──────────────────────────────────────────────────────
+  const WH_LIST  = ['AnAn','SMN','SMT','Upbase SMN'];
+  const WH_COLORS = {'AnAn':'#2563eb','SMN':'#16a34a','SMT':'#f59e0b','Upbase SMN':'#8b5cf6'};
+  const WH_LABELS = {'AnAn':'An An','SMN':'SMN','SMT':'SMT','Upbase SMN':'Upbase'};
+
+  // Tổng tồn + giá trị theo kho (từ baseData)
+  const whTotals = {}, whValues = {};
+  WH_LIST.forEach(w => { whTotals[w] = 0; whValues[w] = 0; });
+  baseData.forEach(p => {
+    const cost = getCost(p.sku);
+    WH_LIST.forEach(w => {
+      const qty = p.warehouses[w]?.stock || 0;
+      whTotals[w] += qty;
+      whValues[w] += qty * cost;
+    });
+  });
+  const grandTotal = WH_LIST.reduce((a,w) => a + whTotals[w], 0);
+  const grandValue = WH_LIST.reduce((a,w) => a + whValues[w], 0);
+
+  // KPI cards — 4 kho (số lượng + giá trị)
+  const whKpiEl = document.getElementById('ov-wh-kpi');
+  if (whKpiEl) {
+    whKpiEl.innerHTML = WH_LIST.map(w => {
+      const qty = whTotals[w];
+      const val = whValues[w];
+      const pctQty = grandTotal > 0 ? Math.round(qty / grandTotal * 100) : 0;
+      const pctVal = grandValue > 0 ? Math.round(val / grandValue * 100) : 0;
+      return `<div class="ov-brand-card" style="border-top-color:${WH_COLORS[w]}">
+        <div class="ov-brand-name" style="color:${WH_COLORS[w]}">${WH_LABELS[w]}</div>
+        <div class="ov-brand-value">${qty.toLocaleString('vi')} <span style="font-size:12px;font-weight:400;color:#888">sp</span></div>
+        <div style="margin:4px 0 1px;height:4px;background:#f0efeb;border-radius:99px">
+          <div style="height:100%;width:${pctQty}%;background:${WH_COLORS[w]};border-radius:99px"></div>
+        </div>
+        <div class="ov-brand-stat">${pctQty}% số lượng</div>
+        ${val > 0 ? `
+        <div style="font-size:14px;font-weight:700;color:#7c3aed;margin-top:6px">💰 ${fmtVND(val)}</div>
+        <div style="margin:4px 0 1px;height:4px;background:#f0efeb;border-radius:99px">
+          <div style="height:100%;width:${pctVal}%;background:#7c3aed;border-radius:99px"></div>
+        </div>
+        <div class="ov-brand-stat" style="color:#7c3aed">${pctVal}% giá trị</div>` : `<div class="ov-brand-stat" style="margin-top:6px;color:#ccc">Chưa có giá vốn</div>`}
+      </div>`;
+    }).join('');
+  }
+
+  // Tính tồn theo nhãn × kho (dùng chung cho 2 biểu đồ)
+  const whByBrand = {}, valByBrand = {};
+  allBrands.forEach(b => {
+    whByBrand[b] = {}; valByBrand[b] = {};
+    WH_LIST.forEach(w => { whByBrand[b][w] = 0; valByBrand[b][w] = 0; });
+  });
+  baseData.forEach(p => {
+    const b = brandMap[p.sku] || '(Chưa phân nhãn)';
+    const cost = getCost(p.sku);
+    if (!whByBrand[b]) return;
+    WH_LIST.forEach(w => {
+      const qty = p.warehouses[w]?.stock || 0;
+      whByBrand[b][w] += qty;
+      valByBrand[b][w] += qty * cost;
+    });
+  });
+
+  // Biểu đồ stacked số lượng: nhãn × kho
+  if (_ovCharts['chart-wh-brand']) { _ovCharts['chart-wh-brand'].destroy(); delete _ovCharts['chart-wh-brand']; }
+  const ctxWh = document.getElementById('chart-wh-brand');
+  if (ctxWh) {
+    _ovCharts['chart-wh-brand'] = new Chart(ctxWh, {
+      type: 'bar',
+      data: {
+        labels: allBrands,
+        datasets: WH_LIST.map(w => ({
+          label: WH_LABELS[w],
+          data: allBrands.map(b => whByBrand[b][w] || 0),
+          backgroundColor: WH_COLORS[w],
+          borderRadius: 3, stack: 'wh',
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('vi') + ' sp' } }
+        },
+        scales: { x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}} }
+      }
+    });
+  }
+
+  // Biểu đồ stacked giá trị: nhãn × kho
+  if (_ovCharts['chart-wh-value']) { _ovCharts['chart-wh-value'].destroy(); delete _ovCharts['chart-wh-value']; }
+  const ctxWhVal = document.getElementById('chart-wh-value');
+  if (ctxWhVal) {
+    const hasAnyValue = allBrands.some(b => WH_LIST.some(w => valByBrand[b][w] > 0));
+    if (hasAnyValue) {
+      _ovCharts['chart-wh-value'] = new Chart(ctxWhVal, {
+        type: 'bar',
+        data: {
+          labels: allBrands,
+          datasets: WH_LIST.map(w => ({
+            label: WH_LABELS[w],
+            data: allBrands.map(b => valByBrand[b][w] || 0),
+            backgroundColor: WH_COLORS[w] + 'cc',
+            borderColor: WH_COLORS[w],
+            borderWidth: 1,
+            borderRadius: 3, stack: 'whval',
+          }))
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } },
+            tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.parsed.y) } }
+          },
+          scales: { x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{callback:v=>fmtVND(v)||'0'}} }
+        }
+      });
+    } else {
+      const cv2 = ctxWhVal.getContext('2d');
+      cv2.clearRect(0,0,ctxWhVal.width,ctxWhVal.height);
+      ctxWhVal.parentElement.innerHTML += '<div style="text-align:center;color:#bbb;font-size:12px;padding:40px 0">Chưa nhập giá vốn cho SKU nào</div>';
+    }
+  }
 
   // Render bảng so sánh bán hàng
   renderSalesCompare();
@@ -2855,6 +3023,7 @@ const SALES_COMPARE_DATA = {
     { sku:'NK054',     name:'Khăn Chilly Fresco',                             data:[45,50,46,34]       },
     { sku:'NK025',     name:'Sérum Physiologique',                            data:[124,0,3,0]         },
     { sku:'P1530122',  name:'Xịt thảo dược bảo vệ da 60ml',                 data:[0,0,0,101]         },
+    { sku:'NK016',     name:'Prospan Cough Lozenges',                         data:[41,11,16,10]       },
     { sku:'P1540011',  name:'Kem đa năng',                                    data:[4,0,0,69]          },
     { sku:'NK014',     name:'Kem hăm',                                        data:[0,0,0,0]           },
     { sku:'NK055',     name:'Khăn Chilly Delicato',                           data:[4,0,0,0]           },
@@ -3234,6 +3403,7 @@ async function doSync() {
     } catch(e){ console.warn('Không lưu được cache:', e.message); }
     document.getElementById('connect-bar').style.display='none';
     if(detailEl) detailEl.textContent='';
+    initSalesAvgFromStaticData(); // Lấp đầy SALES_AVG fallback sau khi sync
     renderAll();
     renderBrandFilterUI();
   } else {
