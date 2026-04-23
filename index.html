@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dự Báo Tồn Kho</title>
 <style>
@@ -274,6 +275,31 @@ table{table-layout:fixed;width:100%}
 .nt-amber{background:#fef3c7;color:#d97706;border-color:#fcd34d;}
 .nt-green{background:#dcfce7;color:#15803d;border-color:#86efac;}
 .nt-blue{background:#dbeafe;color:#1d4ed8;border-color:#93c5fd;}
+
+/* ── BRAND MANAGER MODAL ── */
+.brand-modal-body{display:flex;height:540px;overflow:hidden}
+.brand-list-pane{width:220px;border-right:1px solid #f0efeb;flex-shrink:0;display:flex;flex-direction:column;overflow:hidden}
+.brand-item{padding:10px 14px;cursor:pointer;border-bottom:1px solid #f7f7f4;display:flex;justify-content:space-between;align-items:center;transition:background .1s}
+.brand-item:hover{background:#f7f7f4}
+.brand-item.active{background:#eff6ff;border-left:3px solid #2563eb}
+.brand-item-name{font-size:12px;font-weight:700;color:#1a1a1a}
+.brand-item-count{font-size:10px;color:#aaa;margin-top:1px}
+.brand-sku-pane{flex:1;overflow:hidden;display:flex;flex-direction:column}
+.brand-sku-search{border:1px solid #d0d0c8;border-radius:20px;padding:5px 14px;font-size:12px;outline:none;width:220px}
+.brand-sku-search:focus{border-color:#999}
+
+/* ── OVERVIEW TAB ── */
+#overview-tab{padding:14px 20px 20px;display:none;flex-direction:column;gap:14px;overflow-y:auto;flex:1}
+.ov-brand-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+.ov-brand-card{background:#fff;border-radius:10px;border:1px solid #e5e5e0;padding:14px;position:relative;overflow:hidden;border-top-width:3px}
+.ov-brand-name{font-size:13px;font-weight:700;margin-bottom:4px}
+.ov-brand-value{font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:2px}
+.ov-brand-stat{font-size:10px;color:#888;margin-top:2px}
+.ov-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ov-chart-card{background:#fff;border-radius:10px;border:1px solid #e5e5e0;padding:16px}
+.ov-chart-title{font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:2px}
+.ov-chart-sub{font-size:10px;color:#aaa;margin-bottom:12px}
+.ov-empty{padding:60px;text-align:center;color:#bbb;font-size:13px}
 </style>
 </head>
 <body>
@@ -290,6 +316,7 @@ table{table-layout:fixed;width:100%}
       <option value="60">60 ngày</option><option value="90">90 ngày</option>
     </select>
     <button class="btn" onclick="exportCSV()">Xuất CSV</button>
+    <button class="btn" onclick="openBrandManager()">🏷 Nhãn hàng</button>
     <button class="btn" onclick="openCatManager()">🏷 Phân loại hàng <span class="badge-count" id="cat-badge">207</span></button>
     <button class="btn" onclick="toggleConnect()">Kết nối Sheet</button>
     <button id="sync-btn" class="btn btn-primary" onclick="handleSyncClick()">🔄 Đồng bộ Drive</button>
@@ -393,8 +420,43 @@ table{table-layout:fixed;width:100%}
   </div>
 </div>
 
+<!-- ── BRAND MANAGER MODAL ── -->
+<div class="modal-overlay" id="brand-modal">
+  <div class="modal" style="width:900px">
+    <div class="modal-head">
+      <div>
+        <h2>🏷 Quản lý nhãn hàng</h2>
+        <p>Tạo nhãn hàng và gán SKU vào từng nhãn. Mỗi SKU chỉ thuộc một nhãn hàng.</p>
+      </div>
+      <button class="modal-close" onclick="closeBrandManager()">×</button>
+    </div>
+    <div class="brand-modal-body">
+      <!-- Left: brand list -->
+      <div class="brand-list-pane">
+        <div style="padding:10px 12px;border-bottom:1px solid #f0efeb;display:flex;gap:6px;align-items:center;flex-shrink:0">
+          <input id="new-brand-input" class="modal-search" placeholder="Tên nhãn mới..." style="width:100%;border-radius:6px;margin:0"
+            onkeydown="if(event.key==='Enter')createBrand()"/>
+          <button onclick="createBrand()" style="padding:6px 10px;border-radius:6px;border:none;background:#1a1a1a;color:#fff;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap">+</button>
+        </div>
+        <div id="brand-list-items" style="overflow-y:auto;flex:1"></div>
+      </div>
+      <!-- Right: SKUs in selected brand -->
+      <div class="brand-sku-pane" id="brand-sku-pane">
+        <div id="brand-sku-content" style="display:flex;flex-direction:column;height:540px;overflow:hidden">
+          <div style="padding:80px;text-align:center;color:#bbb;font-size:13px">← Chọn nhãn hàng để quản lý SKU</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <span class="save-info" id="brand-save-info">Nhãn hàng được lưu tự động vào trình duyệt</span>
+      <button class="modal-save-btn" onclick="closeBrandManager()">Xong ✓</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── TABS + KPI + FILTERS (sticky zone) ── -->
 <div id="tabs-bar" style="background:#fff;border-bottom:1px solid #e5e5e0;padding:0 20px;display:flex;gap:0;">
+  <button class="tab-btn" id="tab-overview" onclick="switchTab('overview')">📈 Tổng quan</button>
   <button class="tab-btn active" id="tab-forecast" onclick="switchTab('forecast')">📊 Dự báo nhập hàng</button>
   <button class="tab-btn" id="tab-surplus" onclick="switchTab('surplus')">🔴 Tồn dư cần đẩy</button>
 </div>
@@ -494,6 +556,61 @@ table{table-layout:fixed;width:100%}
   </div>
 </div>
 
+<!-- ── OVERVIEW TAB ── -->
+<div id="overview-tab">
+  <div id="ov-brand-cards-row" class="ov-brand-cards"></div>
+  <div class="ov-charts-grid">
+    <div class="ov-chart-card">
+      <div class="ov-chart-title">Tổng tồn kho theo nhãn hàng</div>
+      <div class="ov-chart-sub">Số lượng tồn kho hiện tại</div>
+      <div style="height:220px;position:relative"><canvas id="chart-stock"></canvas></div>
+    </div>
+    <div class="ov-chart-card">
+      <div class="ov-chart-title">Số ngày tồn bình quân</div>
+      <div class="ov-chart-sub">Trung bình số ngày còn lại của mỗi nhãn (chỉ SKU có bán)</div>
+      <div style="height:220px;position:relative"><canvas id="chart-days"></canvas></div>
+    </div>
+    <div class="ov-chart-card">
+      <div class="ov-chart-title">Giá trị tồn kho theo giá vốn</div>
+      <div class="ov-chart-sub">Chỉ tính SKU đã nhập giá vốn</div>
+      <div style="height:220px;position:relative"><canvas id="chart-value"></canvas></div>
+    </div>
+    <div class="ov-chart-card">
+      <div class="ov-chart-title">Phân bổ theo luồng (L1–L5)</div>
+      <div class="ov-chart-sub">Số SKU mỗi luồng theo từng nhãn</div>
+      <div style="height:220px;position:relative"><canvas id="chart-luong"></canvas></div>
+    </div>
+  </div>
+
+  <!-- ── PHẦN SO SÁNH BÁN HÀNG ── -->
+  <div style="border-top:2px solid #e5e5e0;padding-top:16px;margin-top:4px">
+    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:12px">
+      📊 So sánh bán hàng theo tháng — Báo cáo doanh số online 2026
+    </div>
+    <!-- KPI 4 tháng -->
+    <div id="ov-sales-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
+    <!-- 2 biểu đồ trên -->
+    <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px">
+      <div class="ov-chart-card">
+        <div class="ov-chart-title">Tổng bán theo tháng</div>
+        <div class="ov-chart-sub">Tổng số lượng bán online (cột E)</div>
+        <div style="height:240px;position:relative"><canvas id="chart-monthly-total"></canvas></div>
+      </div>
+      <div class="ov-chart-card">
+        <div class="ov-chart-title">So sánh bán hàng từng SKU theo tháng</div>
+        <div class="ov-chart-sub">Top SKU (trừ NK008) — click legend để ẩn/hiện</div>
+        <div style="height:240px;position:relative"><canvas id="chart-sku-compare"></canvas></div>
+      </div>
+    </div>
+    <!-- Bảng chi tiết -->
+    <div class="ov-chart-card">
+      <div class="ov-chart-title">Bảng chi tiết số lượng bán theo SKU</div>
+      <div class="ov-chart-sub" style="margin-bottom:12px">Nguồn: Báo cáo doanh số online 2026 · cột E (Tổng số xuất bán)</div>
+      <div style="overflow-x:auto" id="ov-sales-table"></div>
+    </div>
+  </div>
+</div>
+
 <!-- ── SURPLUS TAB ── -->
 <div id="surplus-tab" style="padding:0 20px 16px;">
   <div class="surplus-kpi" id="surplus-kpi-row"></div>
@@ -577,10 +694,11 @@ table{table-layout:fixed;width:100%}
           <th onclick="sortSurplus(1,'name')">Tên sản phẩm ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-name','s1')"></span></th>
           <th>Kho<span class="resize-handle" onmousedown="startResize(event,'s1-col-wh','s1')"></span></th>
           <th onclick="sortSurplus(1,'avg')" style="text-align:center">Bán TB/ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-avg','s1')"></span></th>
+          <th onclick="sortSurplus(1,'stock_avg')" style="text-align:center;color:#7c3aed;cursor:pointer" title="Ra hàng thực tế tính từ biến động tồn kho (tồn ngày trước − tồn ngày sau)">Ra hàng/ngày ↕<br><span style="font-size:9px;font-weight:400">(thực tế)</span></th>
           <th onclick="sortSurplus(1,'stock')" style="text-align:center">Tồn hiện tại ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-stock','s1')"></span></th>
-          <th onclick="sortSurplus(1,'days')" style="text-align:center">Ngày còn ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-days','s1')"></span></th>
+          <th onclick="sortSurplus(1,'days_show')" style="text-align:center">Ngày còn ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-days','s1')"></span></th>
           <th onclick="sortSurplus(1,'excess')" style="text-align:right">Số lượng dư ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-excess','s1')"></span></th>
-          <th onclick="sortSurplus(1,'excess_days')" style="text-align:right">Dư bao nhiêu ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-exdays','s1')"></span></th>
+          <th onclick="sortSurplus(1,'excess_days_show')" style="text-align:right">Dư bao nhiêu ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-exdays','s1')"></span></th>
           <th>Ghi chú</th>
         </tr></thead>
         <tbody id="surplus-tbody-1"></tbody>
@@ -1303,17 +1421,28 @@ function exportCSV(){
 // ── TAB SWITCH ────────────────────────────────────────────────────────────────
 function switchTab(tab) {
   const isForecast = tab === 'forecast';
+  const isSurplus  = tab === 'surplus';
+  const isOverview = tab === 'overview';
+
   document.getElementById('tab-forecast').className = 'tab-btn' + (isForecast ? ' active' : '');
-  document.getElementById('tab-surplus').className  = 'tab-btn' + (!isForecast ? ' active' : '');
-  document.querySelector('.kpi-row').style.display    = isForecast ? '' : 'none';
-  document.getElementById('filter-bar').style.display = isForecast ? '' : 'none';
+  document.getElementById('tab-surplus').className  = 'tab-btn' + (isSurplus  ? ' active' : '');
+  document.getElementById('tab-overview').className = 'tab-btn' + (isOverview ? ' active' : '');
+
+  document.querySelector('.kpi-row').style.display     = isForecast ? '' : 'none';
+  document.getElementById('filter-bar').style.display  = isForecast ? '' : 'none';
   document.querySelector('.main-layout').style.display = isForecast ? '' : 'none';
+
   const surplusTab = document.getElementById('surplus-tab');
-  surplusTab.style.display   = isForecast ? 'none' : 'flex';
-  surplusTab.style.flex      = isForecast ? '' : '1';
-  surplusTab.style.minHeight = isForecast ? '' : '0';
-  surplusTab.style.overflow  = isForecast ? '' : 'hidden';
-  if (!isForecast) { renderSurplus(); setTimeout(loadSurplusColWidths, 50); }
+  surplusTab.style.display   = isSurplus ? 'flex' : 'none';
+  surplusTab.style.flex      = isSurplus ? '1' : '';
+  surplusTab.style.minHeight = isSurplus ? '0' : '';
+  surplusTab.style.overflow  = isSurplus ? 'hidden' : '';
+
+  const ovTab = document.getElementById('overview-tab');
+  ovTab.style.display = isOverview ? 'flex' : 'none';
+
+  if (isSurplus)  { renderSurplus(); setTimeout(loadSurplusColWidths, 50); }
+  if (isOverview) { setTimeout(renderOverviewTab, 80); }
 }
 
 function switchSurplusSubTab(n) {
@@ -1382,9 +1511,9 @@ function getSurplusData() {
   if(SS.search){const q=SS.search.toLowerCase();d=d.filter(p=>p.sku.toLowerCase().includes(q)||p.name.toLowerCase().includes(q));}
 
   const getWh = (p) => {
-    if(SS.wh==='ALL') return {stock:p.total_stock, avg:p.total_avg, days:p.total_days, whs:Object.keys(p.warehouses).filter(w=>p.warehouses[w].stock>0)};
+    if(SS.wh==='ALL') return {stock:p.total_stock, avg:p.total_avg, stock_avg:p.total_stock_avg||0, days:p.total_days, whs:Object.keys(p.warehouses).filter(w=>p.warehouses[w].stock>0)};
     const w=p.warehouses[SS.wh]; if(!w) return null;
-    return {stock:w.stock, avg:w.avg, days:w.days_left, whs:[SS.wh]};
+    return {stock:w.stock, avg:w.avg, stock_avg:w.stock_avg||0, days:w.days_left, whs:[SS.wh]};
   };
 
   const TARGET = S.targetDays;
@@ -1395,9 +1524,14 @@ function getSurplusData() {
     if(v.avg > 0 && v.days !== null && v.days > TARGET) {
       const excess = Math.round(v.stock - v.avg * TARGET);
       const excess_days = Math.round(v.days - TARGET);
-      group1.push({...p, _stock:v.stock, _avg:v.avg, _days:v.days, _whs:v.whs, excess, excess_days});
+      const _days_actual = v.stock_avg > 0 ? Math.round(v.stock / v.stock_avg) : null;
+      const _excess_actual = v.stock_avg > 0 ? Math.max(0, Math.round(v.stock - v.stock_avg * TARGET)) : excess;
+      const _excess_days_actual = _days_actual !== null ? Math.max(0, _days_actual - TARGET) : excess_days;
+      const _days_show = _days_actual !== null ? _days_actual : Math.round(v.days);
+      const _excess_days_show = v.stock_avg > 0 ? _excess_days_actual : excess_days;
+      group1.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _days_actual, _days_show, _excess_actual, _excess_days_actual, _excess_days_show, _whs:v.whs, excess, excess_days});
     } else if(v.avg === 0 && v.stock > 0) {
-      group2.push({...p, _stock:v.stock, _avg:v.avg, _days:v.days, _whs:v.whs});
+      group2.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _whs:v.whs});
     }
   }
 
@@ -1468,13 +1602,14 @@ function renderSurplus() {
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
       <td>${whMini(p._whs)}</td>
       <td style="text-align:center;font-family:monospace">${p._avg}</td>
+      <td style="text-align:center;font-family:monospace;color:#7c3aed;font-weight:600">${p._stock_avg > 0 ? p._stock_avg : '<span style="color:#ccc">—</span>'}</td>
       <td style="text-align:center;font-family:monospace">${p._stock.toLocaleString('vi')}</td>
-      <td style="text-align:center">${daysChip(Math.round(p._days))}</td>
-      <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">+${p.excess.toLocaleString('vi')}</td>
-      <td style="text-align:right">${daysChip(p.excess_days)}</td>
+      <td style="text-align:center">${p._days_actual !== null ? daysChip(p._days_actual) : daysChip(Math.round(p._days))}</td>
+      <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">+${(p._stock_avg > 0 ? p._excess_actual : p.excess).toLocaleString('vi')}</td>
+      <td style="text-align:right">${daysChip(p._stock_avg > 0 ? p._excess_days_actual : p.excess_days)}</td>
       <td class="note-cell" onclick="event.stopPropagation()">${getNoteBtn(p.sku,p.name)}</td>
     </tr>`).join('') :
-    '<tr><td colspan="9" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm tồn dư 🎉</td></tr>';
+    '<tr><td colspan="10" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm tồn dư 🎉</td></tr>';
 
   // Group 2
   document.getElementById('s2-count').textContent = group2.length;
@@ -2320,6 +2455,525 @@ async function initNotesHeader() {
   } catch(e) { console.warn('initNotesHeader:', e.message); }
 }
 
+// ── BRAND MAP (nhãn hàng, localStorage) ─────────────────────────────────────
+function loadBrandMap() {
+  try { return JSON.parse(localStorage.getItem('anan_brand_map') || '{}'); } catch(e) { return {}; }
+}
+function saveBrandMap(map) {
+  try { localStorage.setItem('anan_brand_map', JSON.stringify(map)); } catch(e) {}
+}
+function loadBrandList() {
+  try { return JSON.parse(localStorage.getItem('anan_brand_list') || '[]'); } catch(e) { return []; }
+}
+function saveBrandList(arr) {
+  try { localStorage.setItem('anan_brand_list', JSON.stringify(arr)); } catch(e) {}
+}
+
+let _selectedBrand = null;
+let _ovCharts = {};
+
+function openBrandManager() {
+  document.getElementById('brand-modal').classList.add('open');
+  _selectedBrand = null;
+  renderBrandList();
+  document.getElementById('brand-sku-content').innerHTML =
+    '<div style="padding:50px;text-align:center;color:#bbb;font-size:13px">← Chọn nhãn hàng để quản lý SKU</div>';
+}
+function closeBrandManager() {
+  document.getElementById('brand-modal').classList.remove('open');
+  renderOverviewIfVisible();
+}
+document.getElementById('brand-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeBrandManager();
+});
+
+function createBrand() {
+  const input = document.getElementById('new-brand-input');
+  const name = input.value.trim();
+  if (!name) return;
+  const brands = loadBrandList();
+  if (brands.includes(name)) {
+    document.getElementById('brand-save-info').textContent = `Nhãn "${name}" đã tồn tại`;
+    return;
+  }
+  brands.push(name);
+  saveBrandList(brands);
+  input.value = '';
+  _selectedBrand = name;
+  renderBrandList();
+  renderBrandSkus(name);
+  document.getElementById('brand-save-info').textContent = `Đã tạo nhãn "${name}" ✓`;
+}
+
+function deleteBrand(name) {
+  if (!confirm(`Xoá nhãn "${name}"? Các SKU sẽ bị bỏ khỏi nhãn này.`)) return;
+  const map = loadBrandMap();
+  Object.keys(map).forEach(sku => { if (map[sku] === name) delete map[sku]; });
+  saveBrandMap(map);
+  const brands = loadBrandList().filter(b => b !== name);
+  saveBrandList(brands);
+  if (_selectedBrand === name) _selectedBrand = null;
+  renderBrandList();
+  document.getElementById('brand-sku-content').innerHTML =
+    '<div style="padding:50px;text-align:center;color:#bbb;font-size:13px">← Chọn nhãn hàng để quản lý SKU</div>';
+  document.getElementById('brand-save-info').textContent = `Đã xoá nhãn "${name}"`;
+}
+
+function selectBrand(name) {
+  _selectedBrand = name;
+  renderBrandList();
+  renderBrandSkus(name);
+}
+
+// debug helper — gọi từ console: debugBrand()
+function debugBrand() {
+  console.log('S.data.length:', S.data.length);
+  console.log('brand-sku-content el:', document.getElementById('brand-sku-content'));
+  console.log('_selectedBrand:', _selectedBrand);
+  const el = document.getElementById('brand-sku-content');
+  if(el) console.log('height/innerHTML length:', el.offsetHeight, el.innerHTML.length);
+}
+
+function renderBrandList() {
+  const brands = loadBrandList();
+  const map = loadBrandMap();
+  const counts = {};
+  brands.forEach(b => counts[b] = 0);
+  Object.values(map).forEach(b => { if (counts[b] !== undefined) counts[b]++; });
+  const el = document.getElementById('brand-list-items');
+  if (!brands.length) {
+    el.innerHTML = '<div style="padding:20px;text-align:center;color:#bbb;font-size:12px">Chưa có nhãn nào<br><small>Nhập tên và bấm +</small></div>';
+    return;
+  }
+  el.innerHTML = brands.map(b => {
+    const bj = JSON.stringify(b);
+    return `<div class="brand-item ${_selectedBrand === b ? 'active' : ''}" onclick='selectBrand(${bj})'>
+      <div>
+        <div class="brand-item-name">${b}</div>
+        <div class="brand-item-count">${counts[b] || 0} SKU</div>
+      </div>
+      <button onclick='event.stopPropagation();deleteBrand(${bj})'
+        style="font-size:10px;padding:2px 7px;border:1px solid #fca5a5;border-radius:4px;background:#fff;color:#dc2626;cursor:pointer">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function renderBrandSkus(brandName) {
+  const map = loadBrandMap();
+  const q = (document.getElementById('brand-sku-q') ? document.getElementById('brand-sku-q').value : '').toLowerCase();
+  const filtered = S.data.filter(p => {
+    if (!q) return true;
+    return p.sku.toLowerCase().includes(q) || p.name.toLowerCase().includes(q);
+  });
+  const inCount = S.data.filter(p => map[p.sku] === brandName).length;
+  const bj = JSON.stringify(brandName);
+
+  document.getElementById('brand-sku-content').innerHTML = `
+    <div style="padding:10px 16px;border-bottom:1px solid #f0efeb;background:#fafafa;display:flex;gap:10px;align-items:center;flex-shrink:0">
+      <span style="font-size:13px;font-weight:700">${brandName}</span>
+      <span style="font-size:11px;background:#dcfce7;color:#15803d;padding:2px 8px;border-radius:99px;font-weight:600">${inCount} SKU trong nhãn</span>
+      <input id="brand-sku-q" class="brand-sku-search" placeholder="Tìm SKU hoặc tên sản phẩm..."
+        value="${q.replace(/"/g,'&quot;')}" oninput='renderBrandSkus(${bj})' style="margin-left:auto"/>
+    </div>
+    <div style="overflow-y:auto;height:490px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead style="position:sticky;top:0;z-index:2">
+          <tr style="background:#f7f7f4;border-bottom:2px solid #e5e5e0">
+            <th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;width:110px">SKU</th>
+            <th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888">Tên sản phẩm</th>
+            <th style="padding:8px 14px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;width:140px">Nhãn hiện tại</th>
+            <th style="padding:8px 14px;text-align:center;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;width:130px">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${filtered.slice(0,120).map(p => {
+            const inThis = map[p.sku] === brandName;
+            const other  = map[p.sku] && !inThis ? map[p.sku] : null;
+            const rowBg  = inThis ? 'background:#f0fdf4' : '';
+            return `<tr style="border-bottom:1px solid #f7f7f4;${rowBg}">
+              <td style="padding:8px 14px;font-family:monospace;font-size:11px;color:#888">${p.sku}</td>
+              <td style="padding:8px 14px;font-weight:500">${p.name}</td>
+              <td style="padding:8px 14px;font-size:11px">
+                ${inThis ? `<span style="color:#15803d;font-weight:700">✓ ${brandName}</span>`
+                          : other ? `<span style="color:#d97706">${other}</span>` : '<span style="color:#ccc">—</span>'}
+              </td>
+              <td style="padding:8px 14px;text-align:center">
+                ${inThis
+                  ? `<button onclick='removeSkuFromBrand("${p.sku}",${bj})'
+                       style="font-size:11px;padding:4px 14px;border:1px solid #fca5a5;border-radius:20px;background:#fff;color:#dc2626;cursor:pointer;font-weight:600">— Xoá khỏi nhãn</button>`
+                  : `<button onclick='addSkuToBrand("${p.sku}",${bj})'
+                       style="font-size:11px;padding:4px 14px;border:1px solid #86efac;border-radius:20px;background:#fff;color:#15803d;cursor:pointer;font-weight:600">+ Thêm vào nhãn</button>`
+                }
+              </td>
+            </tr>`;
+          }).join('')}
+          ${filtered.length > 120 ? `<tr><td colspan="4" style="padding:10px;text-align:center;font-size:11px;color:#aaa">Hiển thị 120/${filtered.length} — hãy tìm kiếm để lọc</td></tr>` : ''}
+          ${!filtered.length ? '<tr><td colspan="4" style="padding:24px;text-align:center;color:#bbb">Không tìm thấy SKU nào</td></tr>' : ''}
+        </tbody>
+      </table>
+    </div>`;
+  // Giữ focus trên ô tìm kiếm
+  if (q) { const inp = document.getElementById('brand-sku-q'); if(inp) { inp.focus(); inp.setSelectionRange(q.length,q.length); } }
+}
+
+function addSkuToBrand(sku, brandName) {
+  const map = loadBrandMap();
+  map[sku] = brandName;
+  saveBrandMap(map);
+  renderBrandList();
+  renderBrandSkus(brandName);
+  document.getElementById('brand-save-info').textContent = `Đã thêm ${sku} → ${brandName} ✓`;
+}
+function removeSkuFromBrand(sku, brandName) {
+  const map = loadBrandMap();
+  delete map[sku];
+  saveBrandMap(map);
+  renderBrandList();
+  renderBrandSkus(brandName);
+  document.getElementById('brand-save-info').textContent = `Đã xoá ${sku} khỏi ${brandName}`;
+}
+
+// ── OVERVIEW TAB ─────────────────────────────────────────────────────────────
+const BRAND_PALETTE = ['#2563eb','#16a34a','#dc2626','#d97706','#7c3aed','#0891b2','#db2777','#65a30d','#9ca3af'];
+
+function renderOverviewTab() {
+  const brandList = loadBrandList();
+  const brandMap  = loadBrandMap();
+  const UNBRANDED = '(Chưa phân nhãn)';
+
+  // Group SKUs by brand
+  const brandProds = {};
+  brandList.forEach(b => brandProds[b] = []);
+  brandProds[UNBRANDED] = [];
+  S.data.forEach(p => {
+    const b = brandMap[p.sku];
+    if (b && brandProds[b] !== undefined) brandProds[b].push(p);
+    else brandProds[UNBRANDED].push(p);
+  });
+
+  const allBrands = [...brandList, ...(brandProds[UNBRANDED].length ? [UNBRANDED] : [])];
+
+  if (!allBrands.length) {
+    document.getElementById('ov-brand-cards-row').innerHTML =
+      '<div class="ov-empty">Chưa có nhãn hàng nào.<br>Bấm <b>🏷 Nhãn hàng</b> để tạo nhãn và gán SKU.</div>';
+    ['chart-stock','chart-days','chart-value','chart-luong'].forEach(id => {
+      if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
+      const cv = document.getElementById(id);
+      if (cv) { const ctx = cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height); }
+    });
+    return;
+  }
+
+  // Compute stats
+  const stats = allBrands.map((b, i) => {
+    const prods = brandProds[b] || [];
+    const totalStock = prods.reduce((a,p) => a + p.total_stock, 0);
+    const totalValue = prods.reduce((a,p) => a + (getCost(p.sku) * p.total_stock), 0);
+    const prodsWithAvg = prods.filter(p => p.total_avg > 0);
+    const avgDays = prodsWithAvg.length
+      ? Math.round(prodsWithAvg.reduce((a,p) => a + (p.total_days ?? 0), 0) / prodsWithAvg.length)
+      : 0;
+    const luongCounts = {1:0,2:0,3:0,4:0,5:0};
+    prods.forEach(p => { const l = getLuong(p); luongCounts[l] = (luongCounts[l]||0)+1; });
+    return { brand: b, totalStock, totalValue, avgDays, skuCount: prods.length, luongCounts,
+      color: BRAND_PALETTE[i % BRAND_PALETTE.length] };
+  });
+
+  // Brand summary cards
+  document.getElementById('ov-brand-cards-row').innerHTML = stats.map(s => `
+    <div class="ov-brand-card" style="border-top-color:${s.color}">
+      <div class="ov-brand-name" style="color:${s.color}">${s.brand}</div>
+      <div class="ov-brand-value">${s.totalStock.toLocaleString('vi')}</div>
+      <div class="ov-brand-stat">${s.skuCount} SKU · TB ${s.avgDays} ngày tồn</div>
+      ${s.totalValue > 0 ? `<div class="ov-brand-stat" style="color:#7c3aed;font-weight:600;margin-top:4px">💰 ${fmtVND(s.totalValue)}</div>` : ''}
+    </div>`).join('');
+
+  const labels = stats.map(s => s.brand);
+  const colors = stats.map(s => s.color);
+
+  // Destroy old charts
+  ['chart-stock','chart-days','chart-value','chart-luong'].forEach(id => {
+    if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
+  });
+
+  const chartDefaults = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+  };
+
+  // Chart 1: Total stock
+  _ovCharts['chart-stock'] = new Chart(document.getElementById('chart-stock'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: stats.map(s => s.totalStock), backgroundColor: colors, borderRadius: 6 }] },
+    options: { ...chartDefaults, scales: { y: { beginAtZero: true, ticks: { callback: v => v>=1000?Math.round(v/1000)+'k':v } } } }
+  });
+
+  // Chart 2: Average days — color by risk
+  _ovCharts['chart-days'] = new Chart(document.getElementById('chart-days'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: stats.map(s => s.avgDays),
+      backgroundColor: stats.map(s => s.avgDays > 90 ? '#dc2626' : s.avgDays > 45 ? '#d97706' : '#16a34a'), borderRadius: 6 }] },
+    options: { ...chartDefaults, scales: { y: { beginAtZero: true, ticks: { callback: v => v+' N' } } } }
+  });
+
+  // Chart 3: Inventory value
+  _ovCharts['chart-value'] = new Chart(document.getElementById('chart-value'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: stats.map(s => s.totalValue), backgroundColor: colors, borderRadius: 6 }] },
+    options: { ...chartDefaults, scales: { y: { beginAtZero: true, ticks: { callback: v => fmtVND(v)||'0' } } } }
+  });
+
+  // Chart 4: Luong stacked
+  const luongColors = {1:'#3b82f6',2:'#eab308',3:'#f97316',4:'#d97706',5:'#ef4444'};
+  const luongNames  = {1:'L1 Bán chạy',2:'L2 Bình thường',3:'L3 Bán chậm',4:'L4 Quà tặng',5:'L5 Không bán'};
+  _ovCharts['chart-luong'] = new Chart(document.getElementById('chart-luong'), {
+    type: 'bar',
+    data: { labels, datasets: [1,2,3,4,5].map(l => ({
+      label: luongNames[l], stack: 'luong',
+      data: stats.map(s => s.luongCounts[l]||0),
+      backgroundColor: luongColors[l], borderRadius: 2,
+    })) },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } } },
+      scales: { x: { stacked:true }, y: { stacked:true, beginAtZero:true } }
+    }
+  });
+
+  // Render bảng so sánh bán hàng
+  renderSalesCompare();
+}
+
+function renderOverviewIfVisible() {
+  if (document.getElementById('overview-tab').style.display !== 'none') renderOverviewTab();
+}
+
+// ── DỮ LIỆU BÁN HÀNG CỐ ĐỊNH (từ Báo cáo doanh số online 2026) ──────────────
+const SALES_COMPARE_DATA = {
+  months: ['T01/2026','T02/2026','T03/2026','T04/2026'],
+  totals: [62585, 43050, 66674, 46952],
+  skus: [
+    { sku:'NK008',     name:'Fysoline hồng 40 ống',                          data:[7409,5635,8853,6330] },
+    { sku:'NK058',     name:'Chilly Protect Detergent (200ml)',               data:[2883,2942,4881,2271] },
+    { sku:'NK061',     name:'Chilly Gel Detergente (200ml)',                  data:[2341,1923,2130,1953] },
+    { sku:'P1530034',  name:'Nước Tắm Sachi Chai 180ml - Sả chanh',          data:[6533,4630,5332,7945] },
+    { sku:'P1530024',  name:'Nước Tắm Sachi Chai 180ml',                     data:[4344,4612,8709,5220] },
+    { sku:'P1630013',  name:'Gạc Sachi 20 gói',                              data:[13180,5831,246,0]  },
+    { sku:'NK060',     name:'Chilly Delicato Detergente (200ml)',             data:[1801,1357,1461,1040] },
+    { sku:'NK010',     name:'Fysoline vàng 20 ống',                          data:[2333,1356,1750,1192] },
+    { sku:'SX012',     name:'Gạc Sachi 30 gói',                              data:[3736,930,3368,1910] },
+    { sku:'SX016',     name:'Nước tắm Sachi 250ml',                          data:[1828,2226,3082,1802] },
+    { sku:'SX011',     name:'Gạc Sachi 10 gói',                              data:[538,864,4473,1387]  },
+    { sku:'SX025',     name:'Tinh dầu tràm khuynh diệp Sachi 30ml',          data:[2050,1175,2603,1363] },
+    { sku:'SX032',     name:'Nước tắm Sachi 500ml',                          data:[1224,5,1234,2769]  },
+    { sku:'P1530035',  name:'Nước tắm Sachi 500ml - Sả chanh',               data:[521,545,2996,2046] },
+    { sku:'P1730032',  name:'Xịt Muỗi 60ml',                                 data:[385,347,1241,874]  },
+    { sku:'P1530041',  name:'Xịt răng miệng Sachi Fibregum (30ml)',          data:[608,1323,3411,1408] },
+    { sku:'NK050',     name:'Fysoline xanh 20 ống',                          data:[1090,640,796,742]  },
+    { sku:'P1530082',  name:'Tinh dầu Tràm-Khuynh diệp Sachi 50ml',         data:[1157,668,1030,730] },
+    { sku:'SX024',     name:'Tinh dầu tràm NC Sachi 30ml',                   data:[1040,566,1128,624] },
+    { sku:'P1530031',  name:'Nước tắm Sachi 250ml - Sả chanh',               data:[1007,862,1652,1321] },
+    { sku:'NK007',     name:'Fysoline hồng 05 ống',                          data:[832,536,859,604]   },
+    { sku:'P1730031',  name:'Xịt Muỗi 100ml',                                data:[529,281,848,634]   },
+    { sku:'NK024',     name:'Syrup Kan 120ml',                                data:[778,516,928,581]   },
+    { sku:'P1530026',  name:'Nước tắm Sachi 350ml',                          data:[949,1143,764,244]  },
+    { sku:'P1530023',  name:'Nước tắm Sachi Hộp 20 gói x 10ml',             data:[427,325,219,131]   },
+    { sku:'NK009',     name:'Fysoline xịt 100ml',                            data:[434,257,381,264]   },
+    { sku:'SX022',     name:'Nước tắm Sachi hộp 10 gói',                    data:[223,86,200,219]    },
+    { sku:'NK059',     name:'Acqua Alle Rose Tonico Rinfrescante',           data:[201,137,215,76]    },
+    { sku:'NK011',     name:'Fysoline vàng 05 ống',                          data:[401,278,401,241]   },
+    { sku:'NK053',     name:'Fysoline xanh 5 ống',                           data:[484,253,144,4]     },
+    { sku:'NK066',     name:'Chilly Gel Detergente Intimo (50ml)',            data:[106,97,174,81]     },
+    { sku:'SX015',     name:'Hạ sốt O+',                                     data:[455,275,516,293]   },
+    { sku:'NK012',     name:'Gel Lavant 2 en 1 500ml',                       data:[95,51,116,92]      },
+    { sku:'NK067',     name:'Chilly Delicato Detergente Intimo (50ml)',       data:[87,62,131,80]      },
+    { sku:'NK029',     name:'Why-Kids Vitamin D3K2 Spray',                   data:[108,72,100,58]     },
+    { sku:'P1530092',  name:'Tinh dầu tràm NC Sachi 50ml',                   data:[289,194,253,219]   },
+    { sku:'NK054',     name:'Khăn Chilly Fresco',                             data:[45,50,46,34]       },
+    { sku:'NK025',     name:'Sérum Physiologique',                            data:[124,0,3,0]         },
+    { sku:'P1530122',  name:'Xịt thảo dược bảo vệ da 60ml',                 data:[0,0,0,101]         },
+    { sku:'P1540011',  name:'Kem đa năng',                                    data:[4,0,0,69]          },
+    { sku:'NK014',     name:'Kem hăm',                                        data:[0,0,0,0]           },
+    { sku:'NK055',     name:'Khăn Chilly Delicato',                           data:[4,0,0,0]           },
+    { sku:'SX020',     name:'Hạ sốt 2Y+',                                    data:[2,0,0,0]           },
+  ]
+};
+
+function renderSalesCompare() {
+  const D = SALES_COMPARE_DATA;
+  const kpiColors = ['#2563eb','#16a34a','#7c3aed','#d97706'];
+  const monthColors = ['#dbeafe','#dcfce7','#ede9fe','#fef3c7'];
+
+  // T04 là tháng chưa kết thúc — dự kiến cả tháng (22/30 ngày đã qua)
+  const T04_DAYS_DONE = 22, T04_DAYS_TOTAL = 30;
+  const t04Projected = Math.round(D.totals[3] / T04_DAYS_DONE * T04_DAYS_TOTAL);
+  const months      = [...D.months];
+  const totals      = [...D.totals];
+  const monthLabels = ['T01/2026','T02/2026','T03/2026','T04/2026 *'];
+
+  // ── Build sales map { sku → [t1,t2,t3,t4] } ──
+  const salesMap = {};
+  D.skus.forEach(s => { salesMap[s.sku] = s.data; });
+
+  // ── KPI 4 tháng ──
+  const maxTotal = Math.max(...totals, t04Projected);
+  const kpiEl = document.getElementById('ov-sales-kpi');
+  if (!kpiEl) return;
+  kpiEl.innerHTML = monthLabels.map((m, i) => {
+    const prev = i > 0 ? totals[i-1] : null;
+    const diff = prev !== null ? totals[i] - prev : null;
+    const arrow = diff === null ? '' : diff > 0
+      ? `<span style="color:#16a34a;font-size:11px;font-weight:600">▲ +${diff.toLocaleString('vi')}</span>`
+      : diff < 0
+        ? `<span style="color:#dc2626;font-size:11px;font-weight:600">▼ ${diff.toLocaleString('vi')}</span>`
+        : `<span style="color:#aaa;font-size:11px">= không đổi</span>`;
+    const barW = Math.round(totals[i]/maxTotal*100);
+    const isPartial = i === 3;
+    return `<div class="ov-brand-card" style="border-top-color:${kpiColors[i]}">
+      <div class="ov-brand-name" style="color:${kpiColors[i]}">${m}</div>
+      <div class="ov-brand-value">${totals[i].toLocaleString('vi')}</div>
+      ${isPartial ? `<div style="font-size:10px;color:#d97706;margin-top:2px;margin-bottom:2px">đến 22/04 · dự kiến ~${t04Projected.toLocaleString('vi')}</div>` : ''}
+      <div style="margin:4px 0;height:5px;background:#f0efeb;border-radius:99px">
+        <div style="height:100%;width:${barW}%;background:${kpiColors[i]};border-radius:99px"></div>
+        ${isPartial ? `<div style="height:100%;width:${Math.round(t04Projected/maxTotal*100)}%;background:${kpiColors[i]}44;border-radius:99px;margin-top:-5px"></div>` : ''}
+      </div>
+      <div class="ov-brand-stat">sản phẩm bán được ${arrow}</div>
+    </div>`;
+  }).join('');
+
+  // ── Biểu đồ 1: Tổng bán theo tháng (thực tế + dự kiến T04) ──
+  if (_ovCharts['chart-monthly-total']) { _ovCharts['chart-monthly-total'].destroy(); delete _ovCharts['chart-monthly-total']; }
+  const ctx1 = document.getElementById('chart-monthly-total');
+  if (ctx1) {
+    _ovCharts['chart-monthly-total'] = new Chart(ctx1, {
+      type: 'bar',
+      data: {
+        labels: monthLabels,
+        datasets: [
+          { label: 'Thực tế', data: totals, backgroundColor: kpiColors, borderRadius: 8 },
+          { label: 'Dự kiến T04', data: [null,null,null,t04Projected],
+            backgroundColor: '#d97706', borderRadius: 8, borderDash:[4,4],
+            borderColor: '#d97706', borderWidth: 2, type:'bar', base: 0,
+            barPercentage: 0.6, categoryPercentage: 0.8 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: true, position:'bottom', labels:{font:{size:10},boxWidth:10,padding:8} },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('vi') + ' sp' } }
+        },
+        scales: { y: { beginAtZero: true, ticks: { callback: v => v>=1000?Math.round(v/1000)+'k':v } } }
+      }
+    });
+  }
+
+  // ── Biểu đồ 2: So sánh SKU theo tháng (bỏ NK008) ──
+  if (_ovCharts['chart-sku-compare']) { _ovCharts['chart-sku-compare'].destroy(); delete _ovCharts['chart-sku-compare']; }
+  const ctx2 = document.getElementById('chart-sku-compare');
+  if (ctx2) {
+    const skuColors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899','#84cc16','#f97316','#6366f1'];
+    const topSkus = D.skus
+      .filter(s => s.sku !== 'NK008' && s.data.some(v => v > 0))
+      .map(s => ({ ...s, _total: s.data.reduce((a,b)=>a+b,0) }))
+      .sort((a,b) => b._total - a._total)
+      .slice(0, 10);
+    _ovCharts['chart-sku-compare'] = new Chart(ctx2, {
+      type: 'bar',
+      data: {
+        labels: monthLabels,
+        datasets: topSkus.map((s, i) => ({
+          label: s.name,
+          data: s.data,
+          backgroundColor: skuColors[i % skuColors.length],
+          borderRadius: 4,
+        }))
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position:'bottom', labels:{ font:{size:9}, padding:5, boxWidth:10 } },
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('vi') } }
+        },
+        scales: { y: { beginAtZero:true, ticks:{ callback: v => v>=1000?Math.round(v/1000)+'k':v } } }
+      }
+    });
+  }
+
+  // ── Bảng chi tiết — TẤT CẢ SKU từ S.data ──
+  const tableEl = document.getElementById('ov-sales-table');
+  if (!tableEl) return;
+
+  const trendIcon = (data) => {
+    const last = data[data.length-1], prev = data[data.length-2];
+    if (prev === 0 && last === 0) return '<span style="color:#ccc">—</span>';
+    if (prev === 0) return `<span style="color:#16a34a;font-weight:700">↑ Mới</span>`;
+    const pct = Math.round((last-prev)/prev*100);
+    if (pct > 5)  return `<span style="color:#16a34a;font-weight:700">↑ ${pct}%</span>`;
+    if (pct < -5) return `<span style="color:#dc2626;font-weight:700">↓ ${Math.abs(pct)}%</span>`;
+    return `<span style="color:#aaa">${pct >= 0?'+':''}${pct}%</span>`;
+  };
+
+  // Gộp tất cả SKU từ inventory + data bán hàng
+  const allSkus = S.data.map(p => {
+    const sd = salesMap[p.sku] || [0,0,0,0];
+    const total = sd.reduce((a,b)=>a+b,0);
+    return { sku: p.sku, name: p.name, cat: p.cat, data: sd, total };
+  }).sort((a,b) => b.total - a.total);  // sắp theo tổng bán giảm dần
+
+  // Tổng theo tháng (từ tất cả SKU trong kho, nhưng chỉ tính SKU có trong report)
+  const colTotals = [0,1,2,3].map(i => D.skus.reduce((a,s)=>a+s.data[i],0));
+
+  // Tính max mỗi tháng để vẽ bar
+  const maxPerMonth = [0,1,2,3].map(i => Math.max(...allSkus.map(s=>s.data[i]), 1));
+
+  tableEl.innerHTML = `
+    <div style="font-size:10px;color:#d97706;margin-bottom:8px">
+      * T04/2026 tính đến hết 22/04/2026 (${T04_DAYS_DONE}/${T04_DAYS_TOTAL} ngày) · Dự kiến cả tháng: ~${t04Projected.toLocaleString('vi')} sản phẩm
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:#1a1a1a;position:sticky;top:0;z-index:3">
+          <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ddd;width:90px">SKU</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ddd">Tên sản phẩm</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#aaa;width:65px">Loại</th>
+          ${monthLabels.map((m,i)=>`<th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:${kpiColors[i]};width:90px">${m}</th>`).join('')}
+          <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:#fff;width:80px">TỔNG</th>
+          <th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:700;color:#ddd;width:70px">T3→T4</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${allSkus.map(s => {
+          const hasSales = s.total > 0;
+          const catBadge = s.cat === 'ANAN'
+            ? '<span style="font-size:9px;background:#dbeafe;color:#1d4ed8;padding:1px 5px;border-radius:3px">An An</span>'
+            : s.cat === 'HT'
+            ? '<span style="font-size:9px;background:#dcfce7;color:#15803d;padding:1px 5px;border-radius:3px">HT</span>'
+            : '<span style="font-size:9px;color:#ccc">—</span>';
+          return `<tr style="border-bottom:1px solid #f0efeb${!hasSales?';opacity:0.45':''}">
+            <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#888;font-weight:600">${s.sku}</td>
+            <td style="padding:7px 12px;font-weight:500;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">${s.name}</td>
+            <td style="padding:7px 12px">${catBadge}</td>
+            ${s.data.map((v,i) => {
+              const barW = v > 0 ? Math.round(v / maxPerMonth[i] * 80) : 0;
+              return `<td style="padding:7px 12px;text-align:right">
+                <span style="font-family:monospace;font-weight:${v>0?'600':'400'};color:${v>0?'#1a1a1a':'#ccc'}">${v>0?v.toLocaleString('vi'):'—'}</span>
+                ${v>0?`<div style="height:3px;background:${kpiColors[i]};opacity:.6;width:${barW}%;margin-top:2px;border-radius:99px;margin-left:auto"></div>`:''}
+              </td>`;
+            }).join('')}
+            <td style="padding:7px 12px;text-align:right;font-family:monospace;font-weight:700;color:${hasSales?'#1a1a1a':'#ccc'}">${hasSales?s.total.toLocaleString('vi'):'—'}</td>
+            <td style="padding:7px 12px;text-align:center;font-size:11px">${trendIcon(s.data)}</td>
+          </tr>`;
+        }).join('')}
+        <tr style="background:#1a1a1a;font-weight:700">
+          <td colspan="3" style="padding:9px 12px;font-size:11px;color:#aaa;text-transform:uppercase">Tổng (báo cáo)</td>
+          ${colTotals.map((v,i)=>`<td style="padding:9px 12px;text-align:right;font-family:monospace;color:${kpiColors[i]}">${v.toLocaleString('vi')}</td>`).join('')}
+          <td style="padding:9px 12px;text-align:right;font-family:monospace;color:#fff">${colTotals.reduce((a,b)=>a+b,0).toLocaleString('vi')}</td>
+          <td></td>
+        </tr>
+      </tbody>
+    </table>`;
+}
+
 function renderAll(){_cachedGlobalAvg=null;renderKPI();renderTable();renderAlerts();}
 
 // ── FIXED HEADER CLONE (100% reliable, works regardless of CSS overflow) ────────
@@ -2415,7 +3069,7 @@ async function doSync() {
         const stocks=[]; for(let j=5;j<cols.length;j++){const v=parseFloat(cols[j]);if(!isNaN(v))stocks.push(v);}
         const avg=computeAvg(stocks), stock=stocks[0]||0;
         if(!allP[sku])allP[sku]={sku,name,warehouses:{}};
-        allP[sku].warehouses[wh]={stock,avg,history:stocks.slice(0,10),
+        allP[sku].warehouses[wh]={stock,avg,stock_avg:avg,history:stocks.slice(0,10),
           days_left:avg>0?+(stock/avg).toFixed(1):null,
           needed:avg>0?Math.max(0,Math.round(avg*S.targetDays-stock)):0};
       }
@@ -2481,7 +3135,8 @@ async function doSync() {
       });
     }
     const ta=+Object.values(p.warehouses).reduce((a,w)=>a+w.avg,0).toFixed(1);
-    return {...p,cat:S.catMap[p.sku]||'KHAC',total_stock:ts,total_avg:ta,
+    const tsa=+Object.values(p.warehouses).reduce((a,w)=>a+(w.stock_avg||0),0).toFixed(1);
+    return {...p,cat:S.catMap[p.sku]||'KHAC',total_stock:ts,total_avg:ta,total_stock_avg:tsa,
       total_days:ta>0?+(ts/ta).toFixed(1):null,
       total_needed:ta>0?Math.max(0,Math.round(ta*S.targetDays-ts)):0};
   });
