@@ -2289,7 +2289,7 @@ async function pushCatRowToSheet(sku) {
 async function readNotesFromSheet() {
   if (!_accessToken || Date.now() >= _tokenExpiry) return { values: [] };
   try {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A:I')}`;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A:J')}`;
     const res = await fetch(url, { headers: { 'Authorization': 'Bearer '+_accessToken } });
     if (!res.ok) return { values: [] };
     return await res.json();
@@ -2307,6 +2307,7 @@ async function pushAllNotesToSheet() {
   const catMap = S.catMap || loadCatMap();
   const kmSet = S.kmSet || loadKMSet();
   const costMap = S.costMap || loadCostMap();
+  const brandMap = loadBrandMap();
   // Tập hợp tất cả SKU
   const allSkus = new Set([
     ...Object.keys(notes).filter(s => notes[s]?.text),
@@ -2314,7 +2315,8 @@ async function pushAllNotesToSheet() {
     ...Object.keys(manualLuongMap),
     ...Object.keys(catMap).filter(s => catMap[s] && catMap[s] !== 'KHAC'),
     ...[...kmSet],
-    ...Object.keys(costMap).filter(s => costMap[s] > 0)
+    ...Object.keys(costMap).filter(s => costMap[s] > 0),
+    ...Object.keys(brandMap).filter(s => brandMap[s])
   ]);
 
   if (allSkus.size === 0) {
@@ -2344,11 +2346,12 @@ async function pushAllNotesToSheet() {
       const cost = costMap[sku] || '';
       const forecastText = forecastNotes[sku]?.text || '';
       const manualL = manualLuongMap[sku] || '';
+      const brand = brandMap[sku] || '';
       const rowIdx = existMap[sku] || nextRow;
       if (!existMap[sku]) { existMap[sku] = nextRow; nextRow++; }
       requests.push({
-        range: `Ghi chú!A${rowIdx}:I${rowIdx}`,
-        values: [[sku, noteText, status, updated, cat, isKm, cost, forecastText, manualL]]
+        range: `Ghi chú!A${rowIdx}:J${rowIdx}`,
+        values: [[sku, noteText, status, updated, cat, isKm, cost, forecastText, manualL, brand]]
       });
     }
     const batchUrl = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values:batchUpdate`;
@@ -2364,8 +2367,9 @@ async function pushAllNotesToSheet() {
     const noteCount = [...allSkus].filter(s => notes[s]?.text).length;
     const forecastCount = [...allSkus].filter(s => forecastNotes[s]?.text).length;
     const costCount = [...allSkus].filter(s => costMap[s] > 0).length;
-    document.getElementById('modal-save-info').textContent = `✓ Đã đẩy ${noteCount} ghi chú tồn dư + ${forecastCount} ghi chú dự báo + ${allSkus.size} phân loại lên Sheet`;
-    alert(`✓ Đã đẩy thành công:\n- ${noteCount} ghi chú tồn dư\n- ${forecastCount} ghi chú dự báo\n- ${allSkus.size} SKU có phân loại/KM\n- ${costCount} SKU có giá vốn`);
+    const brandCount = [...allSkus].filter(s => brandMap[s]).length;
+    document.getElementById('modal-save-info').textContent = `✓ Đã đẩy ${noteCount} ghi chú + ${allSkus.size} phân loại + ${brandCount} nhãn hàng lên Sheet`;
+    alert(`✓ Đã đẩy thành công:\n- ${noteCount} ghi chú tồn dư\n- ${forecastCount} ghi chú dự báo\n- ${allSkus.size} SKU có phân loại/KM\n- ${costCount} SKU có giá vốn\n- ${brandCount} SKU có nhãn hàng`);
   } catch(e) {
     console.error('pushAllNotesToSheet:', e.message);
     alert('Lỗi khi đẩy dữ liệu: ' + e.message);
@@ -2373,7 +2377,7 @@ async function pushAllNotesToSheet() {
 }
 
 async function syncNotesFromSheet() {
-  // Kéo về cả ghi chú + phân loại + ghi chú dự báo từ Sheet
+  // Kéo về cả ghi chú + phân loại + ghi chú dự báo + nhãn hàng từ Sheet
   const data = await readNotesFromSheet();
   const rows = data.values || [];
   if (rows.length <= 1) return;
@@ -2382,7 +2386,8 @@ async function syncNotesFromSheet() {
   const manualLuongMap = loadManualLuong();
   if (!S.kmSet) S.kmSet = loadKMSet();
   if (!S.costMap) S.costMap = loadCostMap();
-  let noteCount = 0, catCount = 0, costCount = 0, forecastCount = 0;
+  const brandMap = loadBrandMap();
+  let noteCount = 0, catCount = 0, costCount = 0, forecastCount = 0, brandCount = 0;
   for (let i = 1; i < rows.length; i++) {
     const sku          = rows[i][0]||'';
     const text         = rows[i][1]||'';
@@ -2392,6 +2397,7 @@ async function syncNotesFromSheet() {
     const cost         = parseFloat(rows[i][6]||'') || 0;
     const forecastText = rows[i][7]||'';
     const manualLuong  = parseInt(rows[i][8]||'') || null;
+    const brand        = rows[i][9]||'';
     if (!sku) continue;
     if (text) { notes[sku] = { text, updated }; noteCount++; }
     else { delete notes[sku]; }
@@ -2403,7 +2409,9 @@ async function syncNotesFromSheet() {
     if (forecastText) { forecastNotes[sku] = { text: forecastText, updated }; forecastCount++; }
     else { delete forecastNotes[sku]; }
     if (manualLuong >= 1 && manualLuong <= 5) { manualLuongMap[sku] = manualLuong; }
-    // Nếu sheet chưa có dữ liệu cột I → giữ nguyên giá trị local, không xoá
+    if (brand) { brandMap[sku] = brand; brandCount++; }
+    else if (rows[i].length > 9) delete brandMap[sku];
+    // Nếu sheet chưa có dữ liệu cột I/J → giữ nguyên giá trị local, không xoá
   }
   saveNotes(notes);
   saveForecastNotes(forecastNotes);
@@ -2411,6 +2419,15 @@ async function syncNotesFromSheet() {
   saveCatMap();
   saveKMSet(S.kmSet);
   saveCostMap();
+  // Cập nhật brand_map + brand_list từ Sheet
+  saveBrandMap(brandMap);
+  // Tái tạo brand_list từ các giá trị duy nhất trong brandMap (giữ thứ tự alphabet)
+  const existingList = loadBrandList();
+  const brandsInSheet = [...new Set(Object.values(brandMap).filter(Boolean))];
+  // Ghép: giữ thứ tự list cũ, thêm brand mới từ sheet nếu chưa có
+  const mergedList = [...existingList];
+  brandsInSheet.forEach(b => { if (!mergedList.includes(b)) mergedList.push(b); });
+  saveBrandList(mergedList);
   // Nếu S.data đã có (sync sau khi doSync chạy xong) thì recompute luôn
   if (S.data && S.data.length > 0) {
     S.data = S.data.map(p => {
@@ -2422,7 +2439,7 @@ async function syncNotesFromSheet() {
     renderModalTable(); // Cập nhật ô giá vốn trong modal
   }
   const infoEl = document.getElementById('modal-save-info');
-  if (infoEl) infoEl.textContent = `✓ Đã kéo ${noteCount} ghi chú + ${catCount} phân loại + ${costCount} giá vốn từ Sheet`;
+  if (infoEl) infoEl.textContent = `✓ Đã kéo ${noteCount} ghi chú + ${catCount} phân loại + ${costCount} giá vốn + ${brandCount} nhãn hàng từ Sheet`;
 }
 
 function getNoteStatusFromText(text) {
@@ -2444,12 +2461,13 @@ async function initNotesHeader() {
     const needsCostCol = rows.length > 0 && (rows[0][6]||'') !== 'Giá vốn';
     const needsForecastCol = rows.length > 0 && (rows[0][7]||'') !== 'Ghi chú dự báo';
     const needsLuongCol    = rows.length > 0 && (rows[0][8]||'') !== 'Luồng thủ công';
-    if (needsHeader || needsCatCol || needsCostCol || needsForecastCol || needsLuongCol) {
-      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A1:I1')}?valueInputOption=RAW`;
+    const needsBrandCol    = rows.length > 0 && (rows[0][9]||'') !== 'Nhãn hàng';
+    if (needsHeader || needsCatCol || needsCostCol || needsForecastCol || needsLuongCol || needsBrandCol) {
+      const url = `https://sheets.googleapis.com/v4/spreadsheets/${NOTES_SHEET_ID}/values/${encodeURIComponent('Ghi chú!A1:J1')}?valueInputOption=RAW`;
       await fetch(url, {
         method: 'PUT',
         headers: { 'Authorization': 'Bearer '+_accessToken, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ values: [['SKU', 'Ghi chú', 'Trạng thái', 'Cập nhật lần cuối', 'Phân loại', 'isKM', 'Giá vốn', 'Ghi chú dự báo', 'Luồng thủ công']] })
+        body: JSON.stringify({ values: [['SKU', 'Ghi chú', 'Trạng thái', 'Cập nhật lần cuối', 'Phân loại', 'isKM', 'Giá vốn', 'Ghi chú dự báo', 'Luồng thủ công', 'Nhãn hàng']] })
       });
     }
   } catch(e) { console.warn('initNotesHeader:', e.message); }
