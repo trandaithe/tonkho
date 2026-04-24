@@ -290,17 +290,21 @@ table{table-layout:fixed;width:100%}
 .brand-sku-search:focus{border-color:#999}
 
 /* ── OVERVIEW TAB ── */
-#overview-tab{padding:14px 20px 20px;display:none;flex-direction:column;gap:14px;overflow-y:auto;flex:1}
-.ov-brand-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:10px}
+#overview-tab{padding:14px 20px 20px;display:none;flex-direction:column;gap:0;overflow-y:auto;flex:1}
+.ov-brand-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
 .ov-brand-card{background:#fff;border-radius:10px;border:1px solid #e5e5e0;padding:14px;position:relative;overflow:hidden;border-top-width:3px}
 .ov-brand-name{font-size:13px;font-weight:700;margin-bottom:4px}
 .ov-brand-value{font-size:22px;font-weight:700;color:#1a1a1a;margin-bottom:2px}
 .ov-brand-stat{font-size:10px;color:#888;margin-top:2px}
-.ov-charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.ov-charts-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
 .ov-chart-card{background:#fff;border-radius:10px;border:1px solid #e5e5e0;padding:16px}
 .ov-chart-title{font-size:12px;font-weight:700;color:#1a1a1a;margin-bottom:2px}
 .ov-chart-sub{font-size:10px;color:#aaa;margin-bottom:12px}
 .ov-empty{padding:60px;text-align:center;color:#bbb;font-size:13px}
+.ov-section{border-top:2px solid #e5e5e0;padding-top:16px;margin-top:16px;flex-shrink:0}
+.ov-section:first-child,.ov-section-first{border-top:none;padding-top:0;margin-top:0}
+.ov-section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
+.ov-section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555}
 </style>
 </head>
 <body>
@@ -563,28 +567,53 @@ table{table-layout:fixed;width:100%}
 
 <!-- ── OVERVIEW TAB ── -->
 <div id="overview-tab">
-  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid #e5e5e0;margin-bottom:10px;flex-shrink:0">
+
+  <!-- ── BỘ LỌC NHÃN HÀNG ── -->
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid #e5e5e0;margin-bottom:4px;flex-shrink:0">
     <span class="filter-label">Nhãn hàng:</span>
     <div class="filter-group" id="brand-filter-overview"><button class="fbtn active" onclick="setBrandFilter('ALL')">Tất cả</button></div>
   </div>
-  <div id="ov-brand-cards-row" class="ov-brand-cards"></div>
 
-  <!-- ── THỐNG KÊ TỒN DƯ NHANH ── -->
-  <div id="ov-surplus-summary" style="margin-top:10px;flex-shrink:0"></div>
+  <!-- ══ BLOCK 1: TỒN KHO HIỆN TẠI ══ -->
+  <div class="ov-section ov-section-first">
+    <div class="ov-section-head">
+      <span class="ov-section-title">📦 Tồn kho hiện tại</span>
+    </div>
+    <!-- Thẻ KPI theo nhãn -->
+    <div id="ov-brand-cards-row" class="ov-brand-cards" style="margin-bottom:14px"></div>
+    <!-- 3 biểu đồ: tổng tồn | giá trị | số ngày -->
+    <div class="ov-charts-grid">
+      <div class="ov-chart-card">
+        <div class="ov-chart-title">Tổng tồn kho theo nhãn</div>
+        <div class="ov-chart-sub">Số lượng tồn kho hiện tại</div>
+        <div style="height:200px;position:relative"><canvas id="chart-stock"></canvas></div>
+      </div>
+      <div class="ov-chart-card">
+        <div class="ov-chart-title">Giá trị tồn kho (giá vốn)</div>
+        <div class="ov-chart-sub">Chỉ tính SKU đã nhập giá vốn</div>
+        <div style="height:200px;position:relative"><canvas id="chart-value"></canvas></div>
+      </div>
+      <div class="ov-chart-card">
+        <div class="ov-chart-title">Số ngày tồn bình quân</div>
+        <div class="ov-chart-sub">TB ngày tồn mỗi nhãn — đỏ &gt;90N, vàng &gt;45N</div>
+        <div style="height:200px;position:relative"><canvas id="chart-days"></canvas></div>
+      </div>
+    </div>
+  </div>
 
-  <!-- ── TỒN KHO THEO KHO ── -->
-  <div style="border-top:2px solid #e5e5e0;padding-top:14px;margin-top:10px;margin-bottom:4px;flex-shrink:0">
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:10px">🏭 Tồn kho theo từng kho</div>
-    <!-- 4 thẻ KPI kho -->
-    <div id="ov-wh-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px"></div>
-    <!-- 2 biểu đồ stacked: số lượng + giá trị -->
+  <!-- ══ BLOCK 2: PHÂN BỔ THEO KHO ══ -->
+  <div class="ov-section">
+    <div class="ov-section-head">
+      <span class="ov-section-title">🏭 Tồn kho theo từng kho</span>
+    </div>
+    <div id="ov-wh-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="ov-chart-card" style="margin-bottom:0">
+      <div class="ov-chart-card">
         <div class="ov-chart-title">Số lượng tồn theo nhãn &amp; kho</div>
         <div class="ov-chart-sub">Stacked — đơn vị: sản phẩm</div>
         <div style="height:230px;position:relative"><canvas id="chart-wh-brand"></canvas></div>
       </div>
-      <div class="ov-chart-card" style="margin-bottom:0">
+      <div class="ov-chart-card">
         <div class="ov-chart-title">Giá trị tồn theo kho &amp; nhãn</div>
         <div class="ov-chart-sub">Stacked — tính theo giá vốn đã nhập</div>
         <div style="height:230px;position:relative"><canvas id="chart-wh-value"></canvas></div>
@@ -592,10 +621,13 @@ table{table-layout:fixed;width:100%}
     </div>
   </div>
 
-  <!-- ── SO SÁNH TỒN KHO THEO THÁNG ── -->
-  <div style="border-top:2px solid #e5e5e0;padding-top:14px;margin-top:8px;flex-shrink:0">
-    <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap">
-      <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555">📅 So sánh tồn kho theo tháng</div>
+  <!-- ══ BLOCK 3: CẢNH BÁO TỒN DƯ ══ -->
+  <div id="ov-surplus-summary" class="ov-section"></div>
+
+  <!-- ══ BLOCK 4: THEO DÕI THEO THÁNG ══ -->
+  <div class="ov-section">
+    <div class="ov-section-head">
+      <span class="ov-section-title">📅 Theo dõi tồn kho theo tháng</span>
       <button class="btn btn-primary" style="font-size:11px;padding:5px 14px" onclick="saveInventorySnapshot()">💾 Lưu snapshot tháng này</button>
       <button class="btn" style="font-size:11px;padding:5px 12px;color:#dc2626;border-color:#dc2626" onclick="clearInventorySnapshots()">🗑 Xóa tất cả</button>
       <span id="snapshot-status" style="font-size:11px;color:#16a34a"></span>
@@ -605,55 +637,31 @@ table{table-layout:fixed;width:100%}
     </div>
   </div>
 
-  <div class="ov-charts-grid">
-    <div class="ov-chart-card">
-      <div class="ov-chart-title">Tổng tồn kho theo nhãn hàng</div>
-      <div class="ov-chart-sub">Số lượng tồn kho hiện tại</div>
-      <div style="height:220px;position:relative"><canvas id="chart-stock"></canvas></div>
+  <!-- ══ BLOCK 5: DOANH SỐ BÁN HÀNG ══ -->
+  <div class="ov-section" style="padding-bottom:20px">
+    <div class="ov-section-head">
+      <span class="ov-section-title">📊 Doanh số bán hàng — Báo cáo online 2026</span>
     </div>
-    <div class="ov-chart-card">
-      <div class="ov-chart-title">Số ngày tồn bình quân</div>
-      <div class="ov-chart-sub">Trung bình số ngày còn lại của mỗi nhãn (chỉ SKU có bán)</div>
-      <div style="height:220px;position:relative"><canvas id="chart-days"></canvas></div>
-    </div>
-    <div class="ov-chart-card">
-      <div class="ov-chart-title">Giá trị tồn kho theo giá vốn</div>
-      <div class="ov-chart-sub">Chỉ tính SKU đã nhập giá vốn</div>
-      <div style="height:220px;position:relative"><canvas id="chart-value"></canvas></div>
-    </div>
-    <div class="ov-chart-card">
-      <div class="ov-chart-title">Phân bổ theo luồng (L1–L5)</div>
-      <div class="ov-chart-sub">Số SKU mỗi luồng theo từng nhãn</div>
-      <div style="height:220px;position:relative"><canvas id="chart-luong"></canvas></div>
-    </div>
-  </div>
 
-  <!-- ── DOANH SỐ THEO NHÃN HÀNG ── -->
-  <div style="border-top:2px solid #e5e5e0;padding-top:14px;margin-top:8px;flex-shrink:0">
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:10px">🏷 Doanh số bán hàng theo nhãn hàng</div>
+    <!-- 5a: KPI + biểu đồ theo nhãn hàng -->
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">Theo nhãn hàng</div>
     <div id="ov-brand-sales-kpi" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;margin-bottom:12px"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-      <div class="ov-chart-card" style="margin-bottom:0">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:20px">
+      <div class="ov-chart-card">
         <div class="ov-chart-title">Số lượng bán theo nhãn & tháng</div>
         <div class="ov-chart-sub">Stacked — nguồn: Báo cáo doanh số online 2026</div>
         <div style="height:240px;position:relative"><canvas id="chart-brand-sales-qty"></canvas></div>
       </div>
-      <div class="ov-chart-card" style="margin-bottom:0">
+      <div class="ov-chart-card">
         <div class="ov-chart-title">Giá trị bán theo nhãn & tháng</div>
         <div class="ov-chart-sub">Ước tính theo giá vốn — stacked</div>
         <div style="height:240px;position:relative"><canvas id="chart-brand-sales-value"></canvas></div>
       </div>
     </div>
-  </div>
 
-  <!-- ── PHẦN SO SÁNH BÁN HÀNG ── -->
-  <div style="border-top:2px solid #e5e5e0;padding-top:16px;margin-top:4px">
-    <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555;margin-bottom:12px">
-      📊 So sánh bán hàng theo tháng — Báo cáo doanh số online 2026
-    </div>
-    <!-- KPI 4 tháng -->
+    <!-- 5b: KPI + biểu đồ so sánh tháng -->
+    <div style="font-size:11px;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px">So sánh theo tháng</div>
     <div id="ov-sales-kpi" style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px"></div>
-    <!-- 2 biểu đồ trên -->
     <div style="display:grid;grid-template-columns:1fr 2fr;gap:14px;margin-bottom:14px">
       <div class="ov-chart-card">
         <div class="ov-chart-title">Tổng bán theo tháng</div>
@@ -666,13 +674,15 @@ table{table-layout:fixed;width:100%}
         <div style="height:240px;position:relative"><canvas id="chart-sku-compare"></canvas></div>
       </div>
     </div>
-    <!-- Bảng chi tiết -->
+
+    <!-- 5c: Bảng chi tiết SKU -->
     <div class="ov-chart-card">
       <div class="ov-chart-title">Bảng chi tiết số lượng bán theo SKU</div>
       <div class="ov-chart-sub" style="margin-bottom:12px">Nguồn: Báo cáo doanh số online 2026 · cột E (Tổng số xuất bán)</div>
       <div style="overflow-x:auto" id="ov-sales-table"></div>
     </div>
   </div>
+
 </div>
 
 <!-- ── SURPLUS TAB ── -->
@@ -1086,6 +1096,23 @@ function init() {
     }
   } catch(e){ console.warn('Không đọc được cache:', e.message); }
 
+  // Restore live T04 data từ localStorage (nếu có)
+  try {
+    const liveRaw = localStorage.getItem('anan_live_t04');
+    if (liveRaw) {
+      const live = JSON.parse(liveRaw);
+      if (live && live.daysDone && live.skuTotals) {
+        _liveSalesDaysDone = live.daysDone;
+        // Cập nhật SALES_COMPARE_DATA.skus data[monthIdx]
+        const mi = live.monthIdx !== undefined ? live.monthIdx : 3;
+        SALES_COMPARE_DATA.skus.forEach(s => {
+          if (live.skuTotals[s.sku] !== undefined) s.data[mi] = live.skuTotals[s.sku];
+        });
+        if (live.grandTotal > 0) SALES_COMPARE_DATA.totals[mi] = live.grandTotal;
+      }
+    }
+  } catch(e) { console.warn('Không restore live T04:', e.message); }
+
   // Luôn cập nhật SALES_AVG từ SALES_COMPARE_DATA (44 SKU đã biết)
   // Gọi trước khi build S.data để mergeSalesAvg dùng đúng giá trị
   initSalesAvgFromStaticData();
@@ -1243,7 +1270,8 @@ function initSalesAvgFromStaticData(skipSet) {
   });
 }
 
-function parseSalesCSV(text, avgOut, histOut) {
+// monthlyOut (optional): populated với { sku: totalQtyTháng, _daysDone: n }
+function parseSalesCSV(text, avgOut, histOut, monthlyOut) {
   // Parse sales CSV: row 1=dates, row 2=channels, row 3=SL/DS, data from row 4
   const lines = text.split('\n');
   if(lines.length < 4) return;
@@ -1259,6 +1287,7 @@ function parseSalesCSV(text, avgOut, histOut) {
     }
   }
   if(!dayCols.length) return;
+  if(monthlyOut) monthlyOut._daysDone = dayCols.length; // số ngày đã có data
 
   // Data rows: col1=SKU, per day: colStart=TMDT_SL, +2=Tiktok_SL, +4=Online_SL
   for(let i=4;i<lines.length;i++) {
@@ -1266,12 +1295,14 @@ function parseSalesCSV(text, avgOut, histOut) {
     const sku = (cols[1]||'').trim();
     if(!sku||sku==='nan'||sku==='') continue;
     const dailyQtys = [];
+    let monthlyTotal = 0;
     for(const {col} of dayCols) {
       const tmdt   = parseFloat(cols[col]  ) || 0;
       const tiktok = parseFloat(cols[col+2]) || 0;
       const online = parseFloat(cols[col+4]) || 0;
       const total = tmdt + tiktok + online;
       if(total > 0) dailyQtys.push(total);
+      monthlyTotal += total;
     }
     if(dailyQtys.length >= 2) {
       // median
@@ -1281,6 +1312,8 @@ function parseSalesCSV(text, avgOut, histOut) {
       avgOut[sku] = avg;
       histOut[sku] = [...dailyQtys].reverse().slice(0,14);
     }
+    // Tổng tháng (dùng để cập nhật SALES_COMPARE_DATA)
+    if(monthlyOut && monthlyTotal > 0) monthlyOut[sku] = Math.round(monthlyTotal);
   }
 }
 function setStatus2(html){ document.getElementById('status-text').innerHTML=html; }
@@ -2846,7 +2879,7 @@ function renderOverviewTab() {
   if (!allBrands.length) {
     document.getElementById('ov-brand-cards-row').innerHTML =
       '<div class="ov-empty">Chưa có nhãn hàng nào.<br>Bấm <b>🏷 Nhãn hàng</b> để tạo nhãn và gán SKU.</div>';
-    ['chart-stock','chart-days','chart-value','chart-luong'].forEach(id => {
+    ['chart-stock','chart-days','chart-value'].forEach(id => {
       if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
       const cv = document.getElementById(id);
       if (cv) { const ctx = cv.getContext('2d'); ctx.clearRect(0,0,cv.width,cv.height); }
@@ -2863,9 +2896,7 @@ function renderOverviewTab() {
     const avgDays = prodsWithAvg.length
       ? Math.round(prodsWithAvg.reduce((a,p) => a + (p.total_days ?? 0), 0) / prodsWithAvg.length)
       : 0;
-    const luongCounts = {1:0,2:0,3:0,4:0,5:0};
-    prods.forEach(p => { const l = getLuong(p); luongCounts[l] = (luongCounts[l]||0)+1; });
-    return { brand: b, totalStock, totalValue, avgDays, skuCount: prods.length, luongCounts,
+    return { brand: b, totalStock, totalValue, avgDays, skuCount: prods.length,
       color: BRAND_PALETTE[i % BRAND_PALETTE.length] };
   });
 
@@ -2882,7 +2913,7 @@ function renderOverviewTab() {
   const colors = stats.map(s => s.color);
 
   // Destroy old charts
-  ['chart-stock','chart-days','chart-value','chart-luong','chart-wh-brand','chart-wh-value','chart-brand-sales-qty','chart-brand-sales-value','chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value'].forEach(id => {
+  ['chart-stock','chart-days','chart-value','chart-wh-brand','chart-wh-value','chart-brand-sales-qty','chart-brand-sales-value','chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value'].forEach(id => {
     if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
   });
 
@@ -2920,22 +2951,6 @@ function renderOverviewTab() {
     options: { ...chartDefaults,
       plugins: { ...chartDefaults.plugins, datalabels: _dlBarPct(_totalValue) },
       scales: { y: { beginAtZero: true, ticks: { callback: v => fmtVND(v)||'0' } } } }
-  });
-
-  // Chart 4: Luong stacked
-  const luongColors = {1:'#3b82f6',2:'#eab308',3:'#f97316',4:'#d97706',5:'#ef4444'};
-  const luongNames  = {1:'L1 Bán chạy',2:'L2 Bình thường',3:'L3 Bán chậm',4:'L4 Quà tặng',5:'L5 Không bán'};
-  _ovCharts['chart-luong'] = new Chart(document.getElementById('chart-luong'), {
-    type: 'bar',
-    data: { labels, datasets: [1,2,3,4,5].map(l => ({
-      label: luongNames[l], stack: 'luong',
-      data: stats.map(s => s.luongCounts[l]||0),
-      backgroundColor: luongColors[l], borderRadius: 2,
-    })) },
-    options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } }, datalabels: _dlStackPct },
-      scales: { x: { stacked:true }, y: { stacked:true, beginAtZero:true } }
-    }
   });
 
   // ── Tồn kho theo kho ──────────────────────────────────────────────────────
@@ -3131,13 +3146,20 @@ const SALES_COMPARE_DATA = {
   ]
 };
 
+let _scSort = { key: 'total', dir: 1 }; // dir: 1=cao→thấp, -1=thấp→cao
+let _liveSalesDaysDone = 22; // số ngày T04 đã có data — cập nhật tự động khi sync
+function setSalesTableSort(key) {
+  _scSort = { key, dir: _scSort.key === key ? -_scSort.dir : 1 };
+  renderSalesCompare();
+}
+
 function renderSalesCompare() {
   const D = SALES_COMPARE_DATA;
   const kpiColors = ['#2563eb','#16a34a','#7c3aed','#d97706'];
   const monthColors = ['#dbeafe','#dcfce7','#ede9fe','#fef3c7'];
 
-  // T04 là tháng chưa kết thúc — dự kiến cả tháng (22/30 ngày đã qua)
-  const T04_DAYS_DONE = 22, T04_DAYS_TOTAL = 30;
+  // T04 là tháng chưa kết thúc — dự kiến cả tháng
+  const T04_DAYS_DONE = _liveSalesDaysDone, T04_DAYS_TOTAL = 30;
   const t04Projected = Math.round(D.totals[3] / T04_DAYS_DONE * T04_DAYS_TOTAL);
   const months      = [...D.months];
   const totals      = [...D.totals];
@@ -3164,7 +3186,7 @@ function renderSalesCompare() {
     return `<div class="ov-brand-card" style="border-top-color:${kpiColors[i]}">
       <div class="ov-brand-name" style="color:${kpiColors[i]}">${m}</div>
       <div class="ov-brand-value">${totals[i].toLocaleString('vi')}</div>
-      ${isPartial ? `<div style="font-size:10px;color:#d97706;margin-top:2px;margin-bottom:2px">đến 22/04 · dự kiến ~${t04Projected.toLocaleString('vi')}</div>` : ''}
+      ${isPartial ? `<div style="font-size:10px;color:#d97706;margin-top:2px;margin-bottom:2px">đến ${T04_DAYS_DONE}/04 · dự kiến ~${t04Projected.toLocaleString('vi')}</div>` : ''}
       <div style="margin:4px 0;height:5px;background:#f0efeb;border-radius:99px">
         <div style="height:100%;width:${barW}%;background:${kpiColors[i]};border-radius:99px"></div>
         ${isPartial ? `<div style="height:100%;width:${Math.round(t04Projected/maxTotal*100)}%;background:${kpiColors[i]}44;border-radius:99px;margin-top:-5px"></div>` : ''}
@@ -3254,8 +3276,21 @@ function renderSalesCompare() {
   const allSkus = baseInventory.map(p => {
     const sd = salesMap[p.sku] || [0,0,0,0];
     const total = sd.reduce((a,b)=>a+b,0);
-    return { sku: p.sku, name: p.name, cat: p.cat, data: sd, total };
-  }).sort((a,b) => b.total - a.total);  // sắp theo tổng bán giảm dần
+    const last = sd[3], prev = sd[2];
+    const trend = prev > 0 ? (last - prev) / prev * 100 : (last > 0 ? 9999 : -9999);
+    return { sku: p.sku, name: p.name, cat: p.cat, data: sd, total, trend,
+      stock: p.total_stock || 0, days: p.total_days };
+  });
+  // Sắp theo cột đang chọn
+  allSkus.sort((a, b) => {
+    let av, bv;
+    if (_scSort.key === 'total')      { av = a.total;    bv = b.total; }
+    else if (_scSort.key === 'trend') { av = a.trend;    bv = b.trend; }
+    else if (_scSort.key === 'stock') { av = a.stock;    bv = b.stock; }
+    else if (_scSort.key === 'name')  { return _scSort.dir * a.name.localeCompare(b.name, 'vi'); }
+    else { const i = parseInt(_scSort.key.replace('t','')); av = a.data[i]||0; bv = b.data[i]||0; }
+    return _scSort.dir * (bv - av);
+  });
 
   // Tổng theo tháng (lọc theo nhãn nếu có)
   const filteredSalesSkus = S.activeBrand === 'ALL'
@@ -3268,17 +3303,18 @@ function renderSalesCompare() {
 
   tableEl.innerHTML = `
     <div style="font-size:10px;color:#d97706;margin-bottom:8px">
-      * T04/2026 tính đến hết 22/04/2026 (${T04_DAYS_DONE}/${T04_DAYS_TOTAL} ngày) · Dự kiến cả tháng: ~${t04Projected.toLocaleString('vi')} sản phẩm
+      * T04/2026 tính đến hết ${T04_DAYS_DONE}/04/2026 (${T04_DAYS_DONE}/${T04_DAYS_TOTAL} ngày) · Dự kiến cả tháng: ~${t04Projected.toLocaleString('vi')} sản phẩm
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
         <tr style="background:#1a1a1a;position:sticky;top:0;z-index:3">
           <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ddd;width:90px">SKU</th>
-          <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ddd">Tên sản phẩm</th>
-          <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#aaa;width:65px">Loại</th>
-          ${monthLabels.map((m,i)=>`<th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:${kpiColors[i]};width:90px">${m}</th>`).join('')}
-          <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:#fff;width:80px">TỔNG</th>
-          <th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:700;color:#ddd;width:70px">T3→T4</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ddd;cursor:pointer" onclick="setSalesTableSort('name')">Tên sản phẩm ${'name'===_scSort.key?(_scSort.dir===-1?'↓':'↑'):'↕'}</th>
+          <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#aaa;width:55px">Loại</th>
+          <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:#7c3aed;width:90px;cursor:pointer" onclick="setSalesTableSort('stock')">TỒN KHO ${'stock'===_scSort.key?(_scSort.dir===-1?'↓':'↑'):'↕'}</th>
+          ${monthLabels.map((m,i)=>`<th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:${kpiColors[i]};width:90px;cursor:pointer" onclick="setSalesTableSort('t${i}')">${m} ${'t'+i===_scSort.key?(_scSort.dir===-1?'↓':'↑'):'↕'}</th>`).join('')}
+          <th style="padding:8px 12px;text-align:right;font-size:10px;font-weight:700;color:#fff;width:80px;cursor:pointer" onclick="setSalesTableSort('total')">TỔNG ${'total'===_scSort.key?(_scSort.dir===-1?'↓':'↑'):'↕'}</th>
+          <th style="padding:8px 12px;text-align:center;font-size:10px;font-weight:700;color:#f59e0b;width:80px;cursor:pointer" onclick="setSalesTableSort('trend')">T3→T4 ${'trend'===_scSort.key?(_scSort.dir===-1?'↓':'↑'):'↕'}</th>
         </tr>
       </thead>
       <tbody>
@@ -3289,10 +3325,17 @@ function renderSalesCompare() {
             : s.cat === 'HT'
             ? '<span style="font-size:9px;background:#dcfce7;color:#15803d;padding:1px 5px;border-radius:3px">HT</span>'
             : '<span style="font-size:9px;color:#ccc">—</span>';
+          // Màu tồn kho: đỏ nếu hết/sắp hết, vàng nếu 1-7 ngày, tím bình thường
+          const stockColor = s.stock === 0 ? '#dc2626' : (s.days !== null && s.days <= 7) ? '#d97706' : '#7c3aed';
+          const daysLabel = s.stock === 0 ? 'Hết hàng' : s.days !== null ? `${s.days}N` : '';
           return `<tr style="border-bottom:1px solid #f0efeb${!hasSales?';opacity:0.45':''}">
             <td style="padding:7px 12px;font-family:monospace;font-size:11px;color:#888;font-weight:600">${s.sku}</td>
-            <td style="padding:7px 12px;font-weight:500;max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">${s.name}</td>
+            <td style="padding:7px 12px;font-weight:500;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${s.name}">${s.name}</td>
             <td style="padding:7px 12px">${catBadge}</td>
+            <td style="padding:7px 12px;text-align:right">
+              <span style="font-family:monospace;font-weight:700;color:${stockColor}">${s.stock > 0 ? s.stock.toLocaleString('vi') : '—'}</span>
+              ${daysLabel ? `<div style="font-size:9px;color:${stockColor};margin-top:1px">${daysLabel}</div>` : ''}
+            </td>
             ${s.data.map((v,i) => {
               const barW = v > 0 ? Math.round(v / maxPerMonth[i] * 80) : 0;
               return `<td style="padding:7px 12px;text-align:right">
@@ -3306,6 +3349,7 @@ function renderSalesCompare() {
         }).join('')}
         <tr style="background:#1a1a1a;font-weight:700">
           <td colspan="3" style="padding:9px 12px;font-size:11px;color:#aaa;text-transform:uppercase">Tổng (báo cáo)</td>
+          <td style="padding:9px 12px;text-align:right;font-family:monospace;color:#7c3aed">${allSkus.reduce((a,s)=>a+s.stock,0).toLocaleString('vi')}</td>
           ${colTotals.map((v,i)=>`<td style="padding:9px 12px;text-align:right;font-family:monospace;color:${kpiColors[i]}">${v.toLocaleString('vi')}</td>`).join('')}
           <td style="padding:9px 12px;text-align:right;font-family:monospace;color:#fff">${colTotals.reduce((a,b)=>a+b,0).toLocaleString('vi')}</td>
           <td></td>
@@ -3353,9 +3397,9 @@ function renderSurplusSummary(data) {
     </div>`;
 
   el.innerHTML = `
-    <div style="border-top:2px solid #e5e5e0;padding-top:12px;margin-bottom:4px">
-      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
-        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555">⚠️ Tồn dư cần đẩy</div>
+    <div>
+      <div class="ov-section-head" style="margin-bottom:10px">
+        <span class="ov-section-title">⚠️ Tồn dư cần đẩy</span>
         <button onclick="switchTab('surplus')" style="margin-left:auto;font-size:11px;padding:5px 14px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#555;cursor:pointer;font-weight:600">Xem chi tiết →</button>
       </div>
 
@@ -3405,7 +3449,6 @@ function renderSurplusSummary(data) {
         </div>
 
       </div>
-
     </div>`;
 }
 
@@ -3984,13 +4027,37 @@ async function doSync() {
   const now=new Date();
   const monthSheet='T'+String(now.getMonth()+1).padStart(2,'0')+'.'+now.getFullYear();
   const salesGid = SALES_GID_MAP[monthSheet] || '1207091473';
-  const newSalesAvg={}, newSalesHist={};
+  const newSalesAvg={}, newSalesHist={}, newMonthlyTotals={};
   let salesLoaded=false;
   try {
     if(detailEl) detailEl.textContent=`Đang tải doanh số ${monthSheet}...`;
     const text = await fetchFn(SALES_SHEET_ID, salesGid);
-    parseSalesCSV(text, newSalesAvg, newSalesHist);
+    parseSalesCSV(text, newSalesAvg, newSalesHist, newMonthlyTotals);
     salesLoaded=true;
+
+    // ── Cập nhật SALES_COMPARE_DATA cho tháng hiện tại ──────────────────────
+    const monthIdx = now.getMonth(); // 0-indexed (April=3)
+    if (monthIdx <= 3 && Object.keys(newMonthlyTotals).length > 1) {
+      const daysDone = newMonthlyTotals._daysDone || 0;
+      // Cập nhật từng SKU
+      SALES_COMPARE_DATA.skus.forEach(s => {
+        if (newMonthlyTotals[s.sku] !== undefined) s.data[monthIdx] = newMonthlyTotals[s.sku];
+      });
+      // Tính lại tổng tháng
+      const newGrandTotal = SALES_COMPARE_DATA.skus.reduce((a,s)=>a+(s.data[monthIdx]||0),0);
+      if (newGrandTotal > 0) SALES_COMPARE_DATA.totals[monthIdx] = newGrandTotal;
+      if (daysDone > 0) _liveSalesDaysDone = daysDone;
+      // Lưu vào localStorage để restore khi reload
+      try {
+        localStorage.setItem('anan_live_t04', JSON.stringify({
+          monthIdx, daysDone,
+          skuTotals: Object.fromEntries(Object.entries(newMonthlyTotals).filter(([k]) => k !== '_daysDone')),
+          grandTotal: newGrandTotal,
+          updatedAt: new Date().toISOString()
+        }));
+      } catch(e2) {}
+      console.log(`[AnAn] Cập nhật doanh số ${monthSheet}: ${newGrandTotal.toLocaleString('vi')} sp / ${daysDone} ngày`);
+    }
   } catch(e){ console.warn('Lỗi doanh số:', e.message); }
 
   // Tải Tổng hợp tồn (cột K = tổng tồn cuối chính xác)
