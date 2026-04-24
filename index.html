@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dự Báo Tồn Kho</title>
 <style>
@@ -567,6 +568,9 @@ table{table-layout:fixed;width:100%}
     <div class="filter-group" id="brand-filter-overview"><button class="fbtn active" onclick="setBrandFilter('ALL')">Tất cả</button></div>
   </div>
   <div id="ov-brand-cards-row" class="ov-brand-cards"></div>
+
+  <!-- ── THỐNG KÊ TỒN DƯ NHANH ── -->
+  <div id="ov-surplus-summary" style="margin-top:10px;flex-shrink:0"></div>
 
   <!-- ── TỒN KHO THEO KHO ── -->
   <div style="border-top:2px solid #e5e5e0;padding-top:14px;margin-top:10px;margin-bottom:4px;flex-shrink:0">
@@ -2615,6 +2619,41 @@ function setBrandFilter(v) {
 }
 let _ovCharts = {};
 
+// ── CHARTJS-PLUGIN-DATALABELS: đăng ký toàn cục, tắt mặc định ─────────────
+if (typeof ChartDataLabels !== 'undefined') {
+  Chart.register(ChartDataLabels);
+  Chart.defaults.set('plugins.datalabels', { display: false });
+}
+// Helper: % theo stack (cho stacked bar)
+const _dlStackPct = {
+  display: (ctx) => {
+    const total = ctx.chart.data.datasets.reduce((s,ds) => s+(Number(ds.data[ctx.dataIndex])||0),0);
+    if (!total) return false;
+    const pct = Math.round((Number(ctx.dataset.data[ctx.dataIndex])||0)/total*100);
+    return pct >= 8;
+  },
+  formatter: (value, ctx) => {
+    const total = ctx.chart.data.datasets.reduce((s,ds) => s+(Number(ds.data[ctx.dataIndex])||0),0);
+    if (!total || !value) return '';
+    return Math.round(value/total*100)+'%';
+  },
+  color: '#fff', font: { size: 10, weight: '600' }, anchor: 'center', align: 'center'
+};
+// Helper: % so với tổng tất cả bars (cho bar thường)
+const _dlBarPct = (getTotal) => ({
+  display: (ctx) => {
+    const v = Number(ctx.dataset.data[ctx.dataIndex])||0;
+    const t = typeof getTotal === 'function' ? getTotal(ctx) : getTotal;
+    return t > 0 && Math.round(v/t*100) >= 3;
+  },
+  formatter: (value, ctx) => {
+    const t = typeof getTotal === 'function' ? getTotal(ctx) : getTotal;
+    if (!t || !value) return '';
+    return Math.round(value/t*100)+'%';
+  },
+  color: '#fff', font: { size: 10, weight: '600' }, anchor: 'end', align: 'start'
+});
+
 function openBrandManager() {
   document.getElementById('brand-modal').classList.add('open');
   _selectedBrand = null;
@@ -2843,7 +2882,7 @@ function renderOverviewTab() {
   const colors = stats.map(s => s.color);
 
   // Destroy old charts
-  ['chart-stock','chart-days','chart-value','chart-luong','chart-wh-brand','chart-wh-value','chart-brand-sales-qty','chart-brand-sales-value','chart-snap-stock','chart-snap-value','chart-snap-wh'].forEach(id => {
+  ['chart-stock','chart-days','chart-value','chart-luong','chart-wh-brand','chart-wh-value','chart-brand-sales-qty','chart-brand-sales-value','chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value'].forEach(id => {
     if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
   });
 
@@ -2852,26 +2891,35 @@ function renderOverviewTab() {
     plugins: { legend: { display: false } },
   };
 
+  const _totalStock = stats.reduce((a,s)=>a+s.totalStock,0);
+  const _totalValue = stats.reduce((a,s)=>a+s.totalValue,0);
+
   // Chart 1: Total stock
   _ovCharts['chart-stock'] = new Chart(document.getElementById('chart-stock'), {
     type: 'bar',
     data: { labels, datasets: [{ data: stats.map(s => s.totalStock), backgroundColor: colors, borderRadius: 6 }] },
-    options: { ...chartDefaults, scales: { y: { beginAtZero: true, ticks: { callback: v => v>=1000?Math.round(v/1000)+'k':v } } } }
+    options: { ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, datalabels: _dlBarPct(_totalStock) },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v>=1000?Math.round(v/1000)+'k':v } } } }
   });
 
-  // Chart 2: Average days — color by risk
+  // Chart 2: Average days — color by risk (hiển thị số ngày)
   _ovCharts['chart-days'] = new Chart(document.getElementById('chart-days'), {
     type: 'bar',
     data: { labels, datasets: [{ data: stats.map(s => s.avgDays),
       backgroundColor: stats.map(s => s.avgDays > 90 ? '#dc2626' : s.avgDays > 45 ? '#d97706' : '#16a34a'), borderRadius: 6 }] },
-    options: { ...chartDefaults, scales: { y: { beginAtZero: true, ticks: { callback: v => v+' N' } } } }
+    options: { ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, datalabels: { display: (ctx) => !!ctx.dataset.data[ctx.dataIndex], formatter: v => v+'N', color:'#fff', font:{size:10,weight:'600'}, anchor:'center', align:'center' } },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => v+' N' } } } }
   });
 
   // Chart 3: Inventory value
   _ovCharts['chart-value'] = new Chart(document.getElementById('chart-value'), {
     type: 'bar',
     data: { labels, datasets: [{ data: stats.map(s => s.totalValue), backgroundColor: colors, borderRadius: 6 }] },
-    options: { ...chartDefaults, scales: { y: { beginAtZero: true, ticks: { callback: v => fmtVND(v)||'0' } } } }
+    options: { ...chartDefaults,
+      plugins: { ...chartDefaults.plugins, datalabels: _dlBarPct(_totalValue) },
+      scales: { y: { beginAtZero: true, ticks: { callback: v => fmtVND(v)||'0' } } } }
   });
 
   // Chart 4: Luong stacked
@@ -2885,7 +2933,7 @@ function renderOverviewTab() {
       backgroundColor: luongColors[l], borderRadius: 2,
     })) },
     options: { responsive: true, maintainAspectRatio: false,
-      plugins: { legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } } },
+      plugins: { legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } }, datalabels: _dlStackPct },
       scales: { x: { stacked:true }, y: { stacked:true, beginAtZero:true } }
     }
   });
@@ -2970,7 +3018,8 @@ function renderOverviewTab() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } },
-          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('vi') + ' sp' } }
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('vi') + ' sp' } },
+          datalabels: _dlStackPct
         },
         scales: { x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}} }
       }
@@ -3000,7 +3049,8 @@ function renderOverviewTab() {
           responsive: true, maintainAspectRatio: false,
           plugins: {
             legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } },
-            tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.parsed.y) } }
+            tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.parsed.y) } },
+            datalabels: _dlStackPct
           },
           scales: { x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{callback:v=>fmtVND(v)||'0'}} }
         }
@@ -3011,6 +3061,9 @@ function renderOverviewTab() {
       ctxWhVal.parentElement.innerHTML += '<div style="text-align:center;color:#bbb;font-size:12px;padding:40px 0">Chưa nhập giá vốn cho SKU nào</div>';
     }
   }
+
+  // Thống kê tồn dư nhanh
+  renderSurplusSummary(baseData);
 
   // Render bảng so sánh bán hàng
   renderSalesCompare();
@@ -3261,6 +3314,101 @@ function renderSalesCompare() {
     </table>`;
 }
 
+// ── THỐNG KÊ TỒN DƯ NHANH (hiển thị ngoài trang tổng quan) ──────────────────
+function renderSurplusSummary(data) {
+  const el = document.getElementById('ov-surplus-summary');
+  if (!el) return;
+
+  const TARGET = S.targetDays;
+  let ex_count=0, ex_qty=0, ex_value=0;
+  let ns_count=0, ns_qty=0, ns_value=0;
+
+  data.forEach(p => {
+    const cost = getCost(p.sku);
+    const stock = p.total_stock, avg = p.total_avg, days = p.total_days;
+    if (avg > 0 && days !== null && days > TARGET) {
+      const excess = Math.max(0, Math.round(stock - avg * TARGET));
+      ex_count++;
+      ex_qty   += excess;
+      ex_value += excess * cost;
+    } else if (avg === 0 && stock > 0) {
+      ns_count++;
+      ns_qty   += stock;
+      ns_value += stock * cost;
+    }
+  });
+
+  const totalStock = data.reduce((a,p) => a + p.total_stock, 0);
+  const exPct = totalStock > 0 ? Math.round(ex_qty / totalStock * 100) : 0;
+  const nsPct = totalStock > 0 ? Math.round(ns_qty / totalStock * 100) : 0;
+
+  const totalValue = data.reduce((a,p) => a + getCost(p.sku) * p.total_stock, 0);
+  const totalSkus  = data.length;
+
+  const kpiCard = (bg, border, label, val, sub, subColor) =>
+    `<div style="background:${bg};border:1px solid ${border};border-top:3px solid ${subColor};border-radius:10px;padding:12px 14px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:${subColor};margin-bottom:6px">${label}</div>
+      <div style="font-size:22px;font-weight:800;font-family:monospace;color:${subColor};line-height:1.1">${val}</div>
+      <div style="font-size:11px;color:${sub};margin-top:4px">${sub}</div>
+    </div>`;
+
+  el.innerHTML = `
+    <div style="border-top:2px solid #e5e5e0;padding-top:12px;margin-bottom:4px">
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap">
+        <div style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555">⚠️ Tồn dư cần đẩy</div>
+        <button onclick="switchTab('surplus')" style="margin-left:auto;font-size:11px;padding:5px 14px;border-radius:6px;border:1px solid #ccc;background:#fff;color:#555;cursor:pointer;font-weight:600">Xem chi tiết →</button>
+      </div>
+
+      <!-- Hàng KPI tổng quan -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;margin-bottom:0">
+
+        <!-- Tổng tồn -->
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-top:3px solid #0284c7;border-radius:10px;padding:12px 14px;grid-column:span 1">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#0284c7;margin-bottom:4px">📦 Tổng SKU</div>
+          <div style="font-size:22px;font-weight:800;font-family:monospace;color:#0284c7">${totalSkus}</div>
+          <div style="font-size:10px;color:#0369a1;margin-top:3px">SKU đang theo dõi</div>
+        </div>
+        <div style="background:#f0f9ff;border:1px solid #bae6fd;border-top:3px solid #0284c7;border-radius:10px;padding:12px 14px;grid-column:span 1">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#0284c7;margin-bottom:4px">📦 Tổng tồn</div>
+          <div style="font-size:22px;font-weight:800;font-family:monospace;color:#0284c7">${totalStock.toLocaleString('vi')}</div>
+          <div style="font-size:10px;color:#0369a1;margin-top:3px">sản phẩm</div>
+        </div>
+        <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-top:3px solid #7c3aed;border-radius:10px;padding:12px 14px;grid-column:span 1">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#7c3aed;margin-bottom:4px">💰 Giá trị tồn</div>
+          <div style="font-size:16px;font-weight:800;font-family:monospace;color:#7c3aed;line-height:1.3">${totalValue > 0 ? fmtVND(totalValue) : '—'}</div>
+          <div style="font-size:10px;color:#6d28d9;margin-top:3px">theo giá vốn</div>
+        </div>
+
+        <!-- Divider -->
+        <div style="display:flex;align-items:center;justify-content:center;color:#ddd;font-size:20px">|</div>
+
+        <!-- Vượt định mức: SKU + SL + Giá trị -->
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-top:3px solid #d97706;border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#d97706;margin-bottom:4px">🔴 Vượt >${TARGET}N · SKU</div>
+          <div style="font-size:22px;font-weight:800;font-family:monospace;color:#d97706">${ex_count}</div>
+          <div style="margin-top:4px;height:4px;background:#fef3c7;border-radius:99px"><div style="height:100%;width:${totalSkus>0?Math.round(ex_count/totalSkus*100):0}%;background:#d97706;border-radius:99px"></div></div>
+          <div style="font-size:10px;color:#92400e;margin-top:2px">${totalSkus>0?Math.round(ex_count/totalSkus*100):0}% tổng SKU</div>
+        </div>
+        <div style="background:#fffbeb;border:1px solid #fde68a;border-top:3px solid #f59e0b;border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#f59e0b;margin-bottom:4px">🔴 Vượt định mức · SL</div>
+          <div style="font-size:22px;font-weight:800;font-family:monospace;color:#f59e0b">${ex_qty.toLocaleString('vi')}</div>
+          <div style="margin-top:4px;height:4px;background:#fef3c7;border-radius:99px"><div style="height:100%;width:${exPct}%;background:#f59e0b;border-radius:99px"></div></div>
+          <div style="font-size:10px;color:#92400e;margin-top:2px">${exPct}% tổng tồn · ${ex_value>0?fmtVND(ex_value):''}</div>
+        </div>
+
+        <!-- Không DS: SKU + SL -->
+        <div style="background:#fef2f2;border:1px solid #fecaca;border-top:3px solid #dc2626;border-radius:10px;padding:12px 14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#dc2626;margin-bottom:4px">⚫ Không DS · SKU</div>
+          <div style="font-size:22px;font-weight:800;font-family:monospace;color:#dc2626">${ns_count}</div>
+          <div style="font-size:10px;color:#991b1b;margin-top:4px">SL: <b>${ns_qty.toLocaleString('vi')}</b> sp · ${nsPct}% tồn</div>
+          ${ns_value > 0 ? `<div style="font-size:10px;color:#b91c1c;margin-top:2px">${fmtVND(ns_value)}</div>` : ''}
+        </div>
+
+      </div>
+
+    </div>`;
+}
+
 // ── DOANH SỐ BÁN HÀNG THEO NHÃN ────────────────────────────────────────────
 function renderBrandSalesSection() {
   const brandMap   = loadBrandMap();
@@ -3336,7 +3484,8 @@ function renderBrandSalesSection() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { position: 'bottom', labels: { font:{size:10}, padding:8, boxWidth:10 } },
-          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('vi') + ' sp' } }
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toLocaleString('vi') + ' sp' } },
+          datalabels: _dlStackPct
         },
         scales: { x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}} }
       }
@@ -3359,7 +3508,8 @@ function renderBrandSalesSection() {
         responsive: true, maintainAspectRatio: false,
         plugins: {
           legend: { position: 'bottom', labels: { font:{size:10}, padding:8, boxWidth:10 } },
-          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.parsed.y) } }
+          tooltip: { callbacks: { label: ctx => ctx.dataset.label + ': ' + fmtVND(ctx.parsed.y) } },
+          datalabels: _dlStackPct
         },
         scales: { x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{callback:v=>fmtVND(v)||'0'}} }
       }
@@ -3371,6 +3521,28 @@ function renderBrandSalesSection() {
 
 // ── SNAPSHOT TỒN KHO THEO THÁNG ─────────────────────────────────────────────
 const SNAPSHOT_KEY = 'anan_snapshots';
+
+// Tính thống kê tồn dư (dùng chung cho save thủ công + auto-save)
+function computeSurplusStats() {
+  const TARGET = S.targetDays;
+  let excess_count = 0, excess_qty = 0, excess_value = 0;
+  let nosales_count = 0, nosales_qty = 0, nosales_value = 0;
+  S.data.forEach(p => {
+    const cost = getCost(p.sku);
+    const stock = p.total_stock, avg = p.total_avg, days = p.total_days;
+    if (avg > 0 && days !== null && days > TARGET) {
+      const ex = Math.max(0, Math.round(stock - avg * TARGET));
+      excess_count++;
+      excess_qty  += ex;
+      excess_value += ex * cost;
+    } else if (avg === 0 && stock > 0) {
+      nosales_count++;
+      nosales_qty  += stock;
+      nosales_value += stock * cost;
+    }
+  });
+  return { excess_count, excess_qty, excess_value, nosales_count, nosales_qty, nosales_value };
+}
 
 function saveInventorySnapshot() {
   const now = new Date();
@@ -3404,7 +3576,8 @@ function saveInventorySnapshot() {
     totalStock: S.data.reduce((a,p)=>a+p.total_stock, 0),
     totalValue: S.data.reduce((a,p)=>a+(getCost(p.sku)*p.total_stock), 0),
     skuCount: S.data.length,
-    brandData, warehouseData
+    brandData, warehouseData,
+    surplusData: computeSurplusStats()
   };
   localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots));
   const el = document.getElementById('snapshot-status');
@@ -3467,7 +3640,8 @@ function autoSaveMonthlySnapshot() {
     totalStock: S.data.reduce((a, p) => a + p.total_stock, 0),
     totalValue: S.data.reduce((a, p) => a + (getCost(p.sku) * p.total_stock), 0),
     skuCount: S.data.length,
-    brandData, warehouseData
+    brandData, warehouseData,
+    surplusData: computeSurplusStats()
   };
 
   localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots));
@@ -3507,38 +3681,71 @@ function renderSnapshotSection() {
   const WH_COLORS = {'AnAn':'#2563eb','SMN':'#16a34a','SMT':'#f59e0b','Upbase SMN':'#8b5cf6'};
   const WH_LABELS = {'AnAn':'An An','SMN':'SMN','SMT':'SMT','Upbase SMN':'Upbase'};
 
-  ['chart-snap-stock','chart-snap-value','chart-snap-wh'].forEach(id => {
+  ['chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value','chart-snap-excess','chart-snap-nosales'].forEach(id => {
     if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
   });
 
+  const hasSurplus = months.some(m => m.surplusData);
+
   el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:14px">
+    <!-- Hàng 1: Tổng tồn + Giá trị + Theo kho -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px">
       <div class="ov-chart-card" style="margin-bottom:0">
         <div class="ov-chart-title">Tổng tồn kho theo tháng</div>
         <div class="ov-chart-sub">Số lượng sản phẩm tồn kho</div>
-        <div style="height:200px;position:relative"><canvas id="chart-snap-stock"></canvas></div>
+        <div style="height:190px;position:relative"><canvas id="chart-snap-stock"></canvas></div>
       </div>
       <div class="ov-chart-card" style="margin-bottom:0">
         <div class="ov-chart-title">Giá trị tồn kho theo tháng</div>
         <div class="ov-chart-sub">Tính theo giá vốn đã nhập</div>
-        <div style="height:200px;position:relative"><canvas id="chart-snap-value"></canvas></div>
+        <div style="height:190px;position:relative"><canvas id="chart-snap-value"></canvas></div>
       </div>
       <div class="ov-chart-card" style="margin-bottom:0">
         <div class="ov-chart-title">Tồn theo kho qua các tháng</div>
-        <div class="ov-chart-sub">Số lượng mỗi kho</div>
-        <div style="height:200px;position:relative"><canvas id="chart-snap-wh"></canvas></div>
+        <div class="ov-chart-sub">Số lượng mỗi kho — stacked</div>
+        <div style="height:190px;position:relative"><canvas id="chart-snap-wh"></canvas></div>
       </div>
     </div>
+    ${hasSurplus ? `
+    <!-- Hàng 2: Cơ cấu tồn kho theo tháng -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="ov-chart-card" style="margin-bottom:0">
+        <div class="ov-chart-title">Cơ cấu tồn kho theo số lượng</div>
+        <div class="ov-chart-sub">Bình thường · Vượt định mức · Không doanh số — so sánh theo tháng</div>
+        <div style="height:200px;position:relative"><canvas id="chart-snap-comp-qty"></canvas></div>
+      </div>
+      <div class="ov-chart-card" style="margin-bottom:0">
+        <div class="ov-chart-title">Cơ cấu tồn kho theo giá trị</div>
+        <div class="ov-chart-sub">Tính theo giá vốn — so sánh theo tháng</div>
+        <div style="height:200px;position:relative"><canvas id="chart-snap-comp-value"></canvas></div>
+      </div>
+    </div>
+    <!-- Hàng 3: Tồn vượt định mức + Không DS chi tiết -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
+      <div class="ov-chart-card" style="margin-bottom:0">
+        <div class="ov-chart-title" style="color:#d97706">🔴 Tồn vượt định mức</div>
+        <div class="ov-chart-sub">Số lượng dư (sp) &amp; số SKU vượt định mức qua các tháng</div>
+        <div style="height:190px;position:relative"><canvas id="chart-snap-excess"></canvas></div>
+      </div>
+      <div class="ov-chart-card" style="margin-bottom:0">
+        <div class="ov-chart-title" style="color:#dc2626">⚫ Không có doanh số</div>
+        <div class="ov-chart-sub">Số lượng tồn (sp) &amp; số SKU không có doanh số qua các tháng</div>
+        <div style="height:190px;position:relative"><canvas id="chart-snap-nosales"></canvas></div>
+      </div>
+    </div>` : ''}
+    <!-- Bảng chi tiết -->
     <div style="overflow-x:auto;margin-bottom:8px">
-      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:600px">
+      <table style="width:100%;border-collapse:collapse;font-size:12px;min-width:700px">
         <thead>
           <tr style="background:#f8f8f6;border-bottom:2px solid #e5e5e0">
-            <th style="text-align:left;padding:8px 12px;color:#555">Tháng</th>
-            <th style="text-align:right;padding:8px 12px;color:#555">Tổng tồn (sp)</th>
-            <th style="text-align:right;padding:8px 12px;color:#555">Giá trị tồn</th>
-            <th style="text-align:right;padding:8px 12px;color:#555">Số SKU</th>
-            ${WH_LIST.map(w=>`<th style="text-align:right;padding:8px 12px;color:${WH_COLORS[w]}">${WH_LABELS[w]}</th>`).join('')}
-            <th style="text-align:right;padding:8px 12px;color:#aaa">Lưu lúc</th>
+            <th style="text-align:left;padding:8px 10px;color:#555">Tháng</th>
+            <th style="text-align:right;padding:8px 10px;color:#555">Tổng tồn (sp)</th>
+            <th style="text-align:right;padding:8px 10px;color:#555">Giá trị tồn</th>
+            ${WH_LIST.map(w=>`<th style="text-align:right;padding:8px 10px;color:${WH_COLORS[w]}">${WH_LABELS[w]}</th>`).join('')}
+            <th style="text-align:right;padding:8px 10px;color:#d97706">Dư định mức (sp)</th>
+            <th style="text-align:right;padding:8px 10px;color:#d97706">Giá trị dư</th>
+            <th style="text-align:right;padding:8px 10px;color:#dc2626">Không DS (sp)</th>
+            <th style="text-align:right;padding:8px 10px;color:#aaa">Lưu lúc</th>
           </tr>
         </thead>
         <tbody>
@@ -3546,21 +3753,25 @@ function renderSnapshotSection() {
             const prev = i > 0 ? months[i-1] : null;
             const sd = prev ? m.totalStock - prev.totalStock : null;
             const vd = prev ? m.totalValue - prev.totalValue : null;
+            const sx = m.surplusData, px = prev?.surplusData;
+            const exd = sx && px ? sx.excess_qty - px.excess_qty : null;
+            const nsd = sx && px ? sx.nosales_qty - px.nosales_qty : null;
             const rowBg = i % 2 === 0 ? '' : 'background:#fafafa';
             const autoBadge = m.autoSaved ? '<span style="font-size:9px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;padding:1px 5px;border-radius:3px;margin-left:5px">Tự động</span>' : '';
+            const diffSpan = (d, inv) => d===null ? '' : `<span style="font-size:10px;margin-left:3px;color:${(d>0)===inv?'#dc2626':'#16a34a'}">${d>0?'▲+':'▼'}${Math.abs(d).toLocaleString('vi')}</span>`;
             return `<tr style="border-bottom:1px solid #f0efeb;${rowBg}">
-              <td style="padding:8px 12px;font-weight:700">${m.label}${autoBadge}</td>
-              <td style="padding:8px 12px;text-align:right;font-family:monospace;font-weight:600">
-                ${m.totalStock.toLocaleString('vi')}
-                ${sd!==null?`<span style="font-size:10px;margin-left:4px;color:${sd>0?'#dc2626':'#16a34a'}">${sd>0?'▲+':'▼'}${Math.abs(sd).toLocaleString('vi')}</span>`:''}
+              <td style="padding:8px 10px;font-weight:700">${m.label}${autoBadge}</td>
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:600">${m.totalStock.toLocaleString('vi')}${diffSpan(sd,true)}</td>
+              <td style="padding:8px 10px;text-align:right;font-family:monospace">${m.totalValue>0?fmtVND(m.totalValue):'—'}${m.totalValue>0?diffSpan(vd,true):''}</td>
+              ${WH_LIST.map(w=>{const q=m.warehouseData?.[w]?.stock||0;return`<td style="padding:8px 10px;text-align:right;color:${WH_COLORS[w]};font-family:monospace">${q>0?q.toLocaleString('vi'):'—'}</td>`}).join('')}
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#d97706;font-weight:600">
+                ${sx ? sx.excess_qty.toLocaleString('vi')+'<span style="font-size:10px;color:#aaa;font-weight:400"> ('+sx.excess_count+' SKU)</span>' : '—'}${diffSpan(exd,true)}
               </td>
-              <td style="padding:8px 12px;text-align:right;font-family:monospace">
-                ${m.totalValue>0?fmtVND(m.totalValue):'—'}
-                ${vd!==null&&m.totalValue>0?`<span style="font-size:10px;margin-left:4px;color:${vd>0?'#dc2626':'#16a34a'}">${vd>0?'▲+':'▼'}${fmtVND(Math.abs(vd))}</span>`:''}
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#d97706">${sx&&sx.excess_value>0?fmtVND(sx.excess_value):'—'}</td>
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#dc2626;font-weight:600">
+                ${sx ? sx.nosales_qty.toLocaleString('vi')+'<span style="font-size:10px;color:#aaa;font-weight:400"> ('+sx.nosales_count+' SKU)</span>' : '—'}${diffSpan(nsd,true)}
               </td>
-              <td style="padding:8px 12px;text-align:right">${m.skuCount}</td>
-              ${WH_LIST.map(w=>{const q=(m.warehouseData?.[w]?.stock||0);return`<td style="padding:8px 12px;text-align:right;color:${WH_COLORS[w]};font-family:monospace">${q>0?q.toLocaleString('vi'):'—'}</td>`}).join('')}
-              <td style="padding:8px 12px;text-align:right;color:#aaa;font-size:11px">${new Date(m.savedAt).toLocaleDateString('vi-VN')}</td>
+              <td style="padding:8px 10px;text-align:right;color:#aaa;font-size:11px">${new Date(m.savedAt).toLocaleDateString('vi-VN')}</td>
             </tr>`;
           }).join('')}
         </tbody>
@@ -3585,19 +3796,84 @@ function renderSnapshotSection() {
     const sc3 = document.getElementById('chart-snap-wh');
     if (sc3) _ovCharts['chart-snap-wh'] = new Chart(sc3, {
       type: 'bar',
-      data: {
-        labels,
-        datasets: WH_LIST.map(w => ({
-          label: WH_LABELS[w], stack: 'wh',
-          data: months.map(m => m.warehouseData?.[w]?.stock || 0),
-          backgroundColor: WH_COLORS[w], borderRadius: 3
-        }))
-      },
+      data: { labels, datasets: WH_LIST.map(w=>({ label:WH_LABELS[w], stack:'wh', data:months.map(m=>m.warehouseData?.[w]?.stock||0), backgroundColor:WH_COLORS[w], borderRadius:3 })) },
       options: { responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ position:'bottom', labels:{font:{size:10},padding:6,boxWidth:10} }, tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y.toLocaleString('vi')+' sp'}} },
+        plugins:{ legend:{position:'bottom',labels:{font:{size:10},padding:6,boxWidth:10}}, tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+ctx.parsed.y.toLocaleString('vi')+' sp'}}, datalabels:_dlStackPct },
         scales:{ x:{stacked:true}, y:{stacked:true,beginAtZero:true,ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}} }
       }
     });
+
+    if (hasSurplus) {
+      const compColors = ['#22c55e','#f59e0b','#ef4444'];
+      const compLabels = ['Bình thường','Vượt định mức','Không doanh số'];
+      const stackOpts = (fmtFn) => ({
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } },
+          tooltip: { mode:'index', intersect:false, callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${fmtFn(ctx.parsed.y)}` } },
+          datalabels: _dlStackPct
+        },
+        scales: { x:{stacked:true}, y:{stacked:true, beginAtZero:true, ticks:{callback: v => fmtFn(v)||'0'}} }
+      });
+
+      const scCQ = document.getElementById('chart-snap-comp-qty');
+      if (scCQ) _ovCharts['chart-snap-comp-qty'] = new Chart(scCQ, {
+        type: 'bar',
+        data: { labels, datasets: compLabels.map((lbl, i) => ({
+          label: lbl, stack: 'comp',
+          backgroundColor: compColors[i], borderRadius: i===2?3:0,
+          data: months.map(m => {
+            if (!m.surplusData) return 0;
+            const ex = m.surplusData.excess_qty, ns = m.surplusData.nosales_qty;
+            const norm = Math.max(0, m.totalStock - ex - ns);
+            return [norm, ex, ns][i];
+          })
+        })) },
+        options: stackOpts(v => v >= 1000 ? Math.round(v/1000)+'k sp' : v+' sp')
+      });
+
+      const scCV = document.getElementById('chart-snap-comp-value');
+      if (scCV) _ovCharts['chart-snap-comp-value'] = new Chart(scCV, {
+        type: 'bar',
+        data: { labels, datasets: compLabels.map((lbl, i) => ({
+          label: lbl, stack: 'compv',
+          backgroundColor: compColors[i] + 'cc', borderColor: compColors[i], borderWidth:1, borderRadius: i===2?3:0,
+          data: months.map(m => {
+            if (!m.surplusData) return 0;
+            const ex = m.surplusData.excess_value, ns = m.surplusData.nosales_value;
+            const norm = Math.max(0, m.totalValue - ex - ns);
+            return [norm, ex, ns][i];
+          })
+        })) },
+        options: stackOpts(v => fmtVND(v)||'0')
+      });
+
+      const sc4 = document.getElementById('chart-snap-excess');
+      if (sc4) _ovCharts['chart-snap-excess'] = new Chart(sc4, {
+        type: 'bar',
+        data: { labels, datasets: [
+          { label:'Số lượng dư (sp)', data: months.map(m=>m.surplusData?.excess_qty||0), backgroundColor:'#fbbf24', borderRadius:4, yAxisID:'y' },
+          { label:'Số SKU vượt định mức', data: months.map(m=>m.surplusData?.excess_count||0), type:'line', borderColor:'#d97706', backgroundColor:'#d9770622', fill:true, tension:0.3, pointRadius:4, yAxisID:'y1' }
+        ]},
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{position:'bottom',labels:{font:{size:10},padding:6,boxWidth:10}}, tooltip:{mode:'index',intersect:false} },
+          scales:{ y:{beginAtZero:true,ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}}, y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{stepSize:1}} }
+        }
+      });
+
+      const sc5 = document.getElementById('chart-snap-nosales');
+      if (sc5) _ovCharts['chart-snap-nosales'] = new Chart(sc5, {
+        type: 'bar',
+        data: { labels, datasets: [
+          { label:'Số lượng tồn (sp)', data: months.map(m=>m.surplusData?.nosales_qty||0), backgroundColor:'#fca5a5', borderRadius:4, yAxisID:'y' },
+          { label:'Số SKU không DS', data: months.map(m=>m.surplusData?.nosales_count||0), type:'line', borderColor:'#dc2626', backgroundColor:'#dc262622', fill:true, tension:0.3, pointRadius:4, yAxisID:'y1' }
+        ]},
+        options: { responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{position:'bottom',labels:{font:{size:10},padding:6,boxWidth:10}}, tooltip:{mode:'index',intersect:false} },
+          scales:{ y:{beginAtZero:true,ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}}, y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{stepSize:1}} }
+        }
+      });
+    }
   }, 60);
 }
 
