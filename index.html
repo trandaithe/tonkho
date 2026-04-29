@@ -4450,6 +4450,37 @@ function applySharedPayload(payload) {
   return true;
 }
 
+function showDriveApiError(enableUrl) {
+  // Xoá modal cũ nếu có
+  const old = document.getElementById('drive-api-modal');
+  if (old) old.remove();
+  const modal = document.createElement('div');
+  modal.id = 'drive-api-modal';
+  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:9999;display:flex;align-items:center;justify-content:center';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:12px;padding:28px 32px;max-width:480px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,.3)">
+      <div style="font-size:20px;margin-bottom:4px">⚠️ Cần bật Google Drive API</div>
+      <div style="font-size:13px;color:#6b7280;margin-bottom:18px">Project Google Cloud chưa bật API này. Làm theo 3 bước dưới đây:</div>
+      <ol style="font-size:13px;color:#374151;line-height:2;padding-left:20px;margin-bottom:20px">
+        <li>Nhấn nút <b>"Bật Drive API ngay"</b> bên dưới → trang Google Cloud mở ra</li>
+        <li>Nhấn nút xanh <b>"Enable"</b> (hoặc "Bật") trên trang đó</li>
+        <li>Quay lại đây và nhấn <b>"Tạo / Cập nhật link chia sẻ"</b> lại</li>
+      </ol>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <a href="${enableUrl}" target="_blank"
+           style="background:#1d4ed8;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600;font-size:13px">
+          🔗 Bật Drive API ngay
+        </a>
+        <button onclick="document.getElementById('drive-api-modal').remove()"
+                style="background:#f3f4f6;border:1px solid #d1d5db;padding:10px 16px;border-radius:8px;cursor:pointer;font-size:13px">
+          Đóng
+        </button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+  modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+}
+
 // Nút "Tạo / Cập nhật link chia sẻ"
 async function createAndShareData() {
   const apiKey = getApiKey();
@@ -4472,7 +4503,6 @@ async function createAndShareData() {
       await pushSharedData(_accessToken, fileId);
     }
     updateSharedUI();
-    // Lưu thêm vào sync_cache để lần sau biết
     try {
       const c = JSON.parse(localStorage.getItem('sync_cache') || '{}');
       c.sharedFileId = fileId;
@@ -4480,7 +4510,20 @@ async function createAndShareData() {
     } catch(e) {}
     alert(`✅ Đã tạo link chia sẻ thành công!\n\nBây giờ hãy nhấn "📥 Tải file chia sẻ" ở thanh trên cùng để tải file HTML và gửi cho người khác.\n\nMỗi lần bạn đồng bộ, dữ liệu sẽ tự động cập nhật — người khác chỉ cần làm mới trang.`);
   } catch(e) {
-    alert('Lỗi: ' + e.message);
+    // Phát hiện lỗi Drive API chưa bật
+    const msg = e.message || '';
+    if (msg.includes('has not been used') || msg.includes('disabled') || msg.includes('403')) {
+      // Lấy project number từ thông báo lỗi nếu có
+      const projMatch = msg.match(/project\s+(\d+)/);
+      const projNum = projMatch ? projMatch[1] : '';
+      const enableUrl = projNum
+        ? `https://console.cloud.google.com/apis/library/drive.googleapis.com?project=${projNum}`
+        : 'https://console.cloud.google.com/apis/library/drive.googleapis.com';
+      // Hiện thông báo hướng dẫn thay vì alert thô
+      showDriveApiError(enableUrl);
+    } else {
+      alert('Lỗi: ' + msg);
+    }
     console.error(e);
   } finally {
     if (btn) { btn.disabled = false; btn.textContent = '🌐 Tạo / Cập nhật link chia sẻ'; }
