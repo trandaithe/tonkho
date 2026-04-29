@@ -2594,15 +2594,19 @@ async function syncNotesFromSheet() {
     const manualLuong  = parseInt(rows[i][8]||'') || null;
     const brand        = rows[i][9]||'';
     if (!sku) continue;
+    // Ghi chú tồn dư: sheet thắng nếu có nội dung; nếu sheet trống mà local có → giữ local
     if (text) { notes[sku] = { text, updated }; noteCount++; }
-    else { delete notes[sku]; }
+    else if (!notes[sku]?.text) { delete notes[sku]; }
+    // (nếu sheet trống nhưng local có ghi chú → KHÔNG xoá, chờ sheet cập nhật kịp)
     if (cat)  { S.catMap[sku] = cat; catCount++; }
     if (isKm) S.kmSet.add(sku);
     else S.kmSet.delete(sku);
     if (cost > 0) { S.costMap[sku] = cost; costCount++; }
     else if (rows[i].length > 6) delete S.costMap[sku];
+    // Ghi chú dự báo: sheet thắng nếu có nội dung; nếu sheet trống mà local có → giữ local
     if (forecastText) { forecastNotes[sku] = { text: forecastText, updated }; forecastCount++; }
-    else { delete forecastNotes[sku]; }
+    else if (!forecastNotes[sku]?.text) { delete forecastNotes[sku]; }
+    // (nếu sheet trống nhưng local có ghi chú dự báo → KHÔNG xoá)
     if (manualLuong >= 1 && manualLuong <= 5) { manualLuongMap[sku] = manualLuong; }
     if (brand) { brandMap[sku] = brand; brandCount++; }
     else if (rows[i].length > 9) delete brandMap[sku];
@@ -4419,6 +4423,16 @@ async function fetchSharedData(fileId, apiKey) {
   return res.json();
 }
 
+// Gộp notes: local ưu tiên hơn Drive (local = mới hơn hoặc vừa sửa)
+function mergeNotes(localObj, driveObj) {
+  const merged = Object.assign({}, driveObj || {});
+  Object.entries(localObj || {}).forEach(([sku, note]) => {
+    if (note && note.text) merged[sku] = note;   // local có → giữ local
+    else delete merged[sku];                      // local xoá → xoá luôn
+  });
+  return merged;
+}
+
 // Áp dụng payload vừa tải về vào app state
 function applySharedPayload(payload) {
   if (!payload || !payload.data || !Array.isArray(payload.data) || payload.data.length === 0) return false;
@@ -4426,6 +4440,8 @@ function applySharedPayload(payload) {
     if (val !== null && val !== undefined)
       try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
   };
+  const safeGet = (key) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : {}; } catch(e) { return {}; } };
+
   S.data = payload.data.map(p => ({...recompute(p, S.targetDays), cat: (payload.catMap||{})[p.sku]||p.cat||'KHAC', avg_source: p.avg_source}));
   if (payload.catMap)  S.catMap  = payload.catMap;
   if (payload.costMap) S.costMap = payload.costMap;
@@ -4437,8 +4453,9 @@ function applySharedPayload(payload) {
   safeSet('anan_km_skus',    payload.kmSkus);
   safeSet('anan_snapshots',  payload.snapshots);
   safeSet('anan_live_t04',   payload.liveT04);
-  safeSet('surplus_notes',   payload.surplusNotes);
-  safeSet('forecast_notes',  payload.forecastNotes);
+  // Ghi chú: gộp local + Drive, local được ưu tiên (tránh mất ghi chú vừa sửa)
+  safeSet('surplus_notes',  mergeNotes(safeGet('surplus_notes'),  payload.surplusNotes));
+  safeSet('forecast_notes', mergeNotes(safeGet('forecast_notes'), payload.forecastNotes));
   if (payload.salesAvg)  Object.assign(SALES_AVG,  payload.salesAvg);
   if (payload.salesHist) Object.assign(SALES_HIST, payload.salesHist);
   if (payload.liveT04 && payload.liveT04.daysDone) {
