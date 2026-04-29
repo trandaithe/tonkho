@@ -317,7 +317,7 @@ table{table-layout:fixed;width:100%}
   </div>
   <div class="header-right">
     <select id="target-days-sel" onchange="setTargetDays(this.value)" style="font-size:11px;padding:5px 10px;border-radius:6px;border:1px solid #444;background:#333;color:#ccc;cursor:pointer">
-      <option value="30">30 ngày</option><option value="45" selected>45 ngày</option>
+      <option value="10">10 ngày</option><option value="30">30 ngày</option><option value="45" selected>45 ngày</option>
       <option value="60">60 ngày</option><option value="90">90 ngày</option>
     </select>
     <button class="btn" onclick="exportCSV()">Xuất CSV</button>
@@ -756,24 +756,25 @@ table{table-layout:fixed;width:100%}
       <table class="surplus-table" id="surplus-table-1" style="table-layout:fixed;width:100%">
         <colgroup>
           <col id="s1-col-sku"    style="width:100px;min-width:70px">
-          <col id="s1-col-name"   style="width:220px;min-width:120px">
-          <col id="s1-col-wh"     style="width:95px;min-width:60px">
-          <col id="s1-col-avg"    style="width:85px;min-width:55px">
-          <col id="s1-col-stock"  style="width:90px;min-width:60px">
-          <col id="s1-col-days"   style="width:90px;min-width:60px">
-          <col id="s1-col-excess" style="width:90px;min-width:60px">
-          <col id="s1-col-exdays" style="width:110px;min-width:80px">
-          <col id="s1-col-note"   style="width:180px;min-width:120px">
+          <col id="s1-col-name"   style="width:200px;min-width:120px">
+          <col id="s1-col-wh"     style="width:85px;min-width:60px">
+          <col id="s1-col-avg"    style="width:80px;min-width:55px">
+          <col id="s1-col-stock"  style="width:85px;min-width:60px">
+          <col id="s1-col-days"   style="width:85px;min-width:60px">
+          <col id="s1-col-excess" style="width:85px;min-width:60px">
+          <col id="s1-col-exval"  style="width:110px;min-width:80px">
+          <col id="s1-col-exdays" style="width:105px;min-width:80px">
+          <col id="s1-col-note"   style="width:170px;min-width:120px">
         </colgroup>
         <thead><tr>
           <th onclick="sortSurplus(1,'sku')">SKU ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-sku','s1')"></span></th>
           <th onclick="sortSurplus(1,'name')">Tên sản phẩm ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-name','s1')"></span></th>
           <th>Kho<span class="resize-handle" onmousedown="startResize(event,'s1-col-wh','s1')"></span></th>
           <th onclick="sortSurplus(1,'avg')" style="text-align:center">Bán TB/ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-avg','s1')"></span></th>
-          <th onclick="sortSurplus(1,'stock_avg')" style="text-align:center;color:#7c3aed;cursor:pointer" title="Ra hàng thực tế tính từ biến động tồn kho (tồn ngày trước − tồn ngày sau)">Ra hàng/ngày ↕<br><span style="font-size:9px;font-weight:400">(thực tế)</span></th>
           <th onclick="sortSurplus(1,'stock')" style="text-align:center">Tồn hiện tại ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-stock','s1')"></span></th>
           <th onclick="sortSurplus(1,'days_show')" style="text-align:center">Ngày còn ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-days','s1')"></span></th>
-          <th onclick="sortSurplus(1,'excess')" style="text-align:right">Số lượng dư ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-excess','s1')"></span></th>
+          <th onclick="sortSurplus(1,'excess')" style="text-align:right">SL dư ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-excess','s1')"></span></th>
+          <th onclick="sortSurplus(1,'excess_value')" style="text-align:right;color:#d97706;cursor:pointer">Giá trị dư ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-exval','s1')"></span></th>
           <th onclick="sortSurplus(1,'excess_days_show')" style="text-align:right">Dư bao nhiêu ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-exdays','s1')"></span></th>
           <th>Ghi chú</th>
         </tr></thead>
@@ -793,18 +794,20 @@ table{table-layout:fixed;width:100%}
       <table class="surplus-table" id="surplus-table-2" style="table-layout:fixed;width:100%">
         <colgroup>
           <col id="s2-col-sku"     style="width:100px;min-width:70px">
-          <col id="s2-col-name"    style="width:260px;min-width:120px">
-          <col id="s2-col-wh"      style="width:110px;min-width:60px">
-          <col id="s2-col-stock"   style="width:100px;min-width:60px">
-          <col id="s2-col-status"  style="width:140px;min-width:100px">
-          <col id="s2-col-suggest" style="width:120px;min-width:80px">
-          <col id="s2-col-note"    style="width:180px;min-width:120px">
+          <col id="s2-col-name"    style="width:230px;min-width:120px">
+          <col id="s2-col-wh"      style="width:95px;min-width:60px">
+          <col id="s2-col-stock"   style="width:90px;min-width:60px">
+          <col id="s2-col-sval"    style="width:115px;min-width:80px">
+          <col id="s2-col-status"  style="width:130px;min-width:100px">
+          <col id="s2-col-suggest" style="width:110px;min-width:80px">
+          <col id="s2-col-note"    style="width:170px;min-width:120px">
         </colgroup>
         <thead><tr>
           <th onclick="sortSurplus(2,'sku')">SKU ↕<span class="resize-handle" onmousedown="startResize(event,'s2-col-sku','s2')"></span></th>
           <th onclick="sortSurplus(2,'name')">Tên sản phẩm ↕<span class="resize-handle" onmousedown="startResize(event,'s2-col-name','s2')"></span></th>
           <th>Kho<span class="resize-handle" onmousedown="startResize(event,'s2-col-wh','s2')"></span></th>
           <th onclick="sortSurplus(2,'stock')" style="text-align:center">Tồn hiện tại ↕<span class="resize-handle" onmousedown="startResize(event,'s2-col-stock','s2')"></span></th>
+          <th onclick="sortSurplus(2,'stock_value')" style="text-align:right;color:#dc2626;cursor:pointer">Giá trị tồn ↕<span class="resize-handle" onmousedown="startResize(event,'s2-col-sval','s2')"></span></th>
           <th style="text-align:center">Trạng thái<span class="resize-handle" onmousedown="startResize(event,'s2-col-status','s2')"></span></th>
           <th style="text-align:right">Đề xuất<span class="resize-handle" onmousedown="startResize(event,'s2-col-suggest','s2')"></span></th>
           <th>Ghi chú</th>
@@ -1668,9 +1671,14 @@ function getSurplusData() {
       const _excess_days_actual = _days_actual !== null ? Math.max(0, _days_actual - TARGET) : excess_days;
       const _days_show = _days_actual !== null ? _days_actual : Math.round(v.days);
       const _excess_days_show = v.stock_avg > 0 ? _excess_days_actual : excess_days;
-      group1.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _days_actual, _days_show, _excess_actual, _excess_days_actual, _excess_days_show, _whs:v.whs, excess, excess_days});
+      const _cost = getCost(p.sku);
+      const _excess_qty_show = v.stock_avg > 0 ? _excess_actual : excess;
+      const _excess_value = _cost > 0 ? _excess_qty_show * _cost : 0;
+      group1.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _days_actual, _days_show, _excess_actual, _excess_days_actual, _excess_days_show, _whs:v.whs, excess, excess_days, _excess_value});
     } else if(v.avg === 0 && v.stock > 0) {
-      group2.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _whs:v.whs});
+      const _cost = getCost(p.sku);
+      const _stock_value = _cost > 0 ? v.stock * _cost : 0;
+      group2.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _whs:v.whs, _stock_value});
     }
   }
 
@@ -1705,9 +1713,10 @@ function whMini(whs) {
 
 function renderSurplus() {
   const {group1, group2} = getSurplusData();
-  const totalExcess = group1.reduce((a,p)=>a+p.excess,0);
+  const totalExcess = group1.reduce((a,p)=>a+(p._stock_avg > 0 ? p._excess_actual : p.excess),0);
+  const totalExcessValue = group1.reduce((a,p)=>a+(p._excess_value||0),0);
+  const totalNoSaleValue = group2.reduce((a,p)=>a+(p._stock_value||0),0);
   const allSurplus = [...group1, ...group2];
-  const totalNoSaleStock = group2.reduce((a,p)=>a+p._stock,0);
 
   // KPI
   document.getElementById('surplus-kpi-row').innerHTML = `
@@ -1724,9 +1733,13 @@ function renderSurplus() {
       <div class="skpi-value">${allSurplus.filter(p=>isKM(p.sku)).length}</div>
       <div class="skpi-sub">click để lọc</div></div>
     <div class="skpi skpi-4">
-      <div class="skpi-label">Tổng số lượng dư</div>
+      <div class="skpi-label">Tổng SL dư (định mức)</div>
       <div class="skpi-value">${totalExcess.toLocaleString('vi')}</div>
-      <div class="skpi-sub">so với định mức ${S.targetDays}N</div></div>`;
+      <div class="skpi-sub">${totalExcessValue > 0 ? '💰 ' + fmtVND(totalExcessValue) : 'Chưa nhập giá vốn'}</div></div>
+    ${totalNoSaleValue > 0 ? `<div class="skpi" style="border-top:3px solid #dc2626">
+      <div class="skpi-label" style="color:#dc2626">⚫ Giá trị không DS</div>
+      <div class="skpi-value" style="font-size:14px;color:#dc2626">${fmtVND(totalNoSaleValue)}</div>
+      <div class="skpi-sub">${group2.length} SKU không có doanh số</div></div>` : ''}`;
 
   // Group 1
   document.getElementById('s1-count').textContent = group1.length;
@@ -1741,10 +1754,10 @@ function renderSurplus() {
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
       <td>${whMini(p._whs)}</td>
       <td style="text-align:center;font-family:monospace">${p._avg}</td>
-      <td style="text-align:center;font-family:monospace;color:#7c3aed;font-weight:600">${p._stock_avg > 0 ? p._stock_avg : '<span style="color:#ccc">—</span>'}</td>
       <td style="text-align:center;font-family:monospace">${p._stock.toLocaleString('vi')}</td>
       <td style="text-align:center">${p._days_actual !== null ? daysChip(p._days_actual) : daysChip(Math.round(p._days))}</td>
       <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">+${(p._stock_avg > 0 ? p._excess_actual : p.excess).toLocaleString('vi')}</td>
+      <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">${p._excess_value > 0 ? fmtVND(p._excess_value) : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
       <td style="text-align:right">${daysChip(p._stock_avg > 0 ? p._excess_days_actual : p.excess_days)}</td>
       <td class="note-cell" onclick="event.stopPropagation()">${getNoteBtn(p.sku,p.name)}</td>
     </tr>`).join('') :
@@ -1758,11 +1771,12 @@ function renderSurplus() {
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
       <td>${whMini(p._whs)}</td>
       <td style="text-align:center;font-family:monospace;font-weight:600">${p._stock.toLocaleString('vi')}</td>
+      <td style="text-align:right;font-family:monospace;font-weight:700;color:#dc2626">${p._stock_value > 0 ? fmtVND(p._stock_value) : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
       <td style="text-align:center"><span class="days-chip days-chip-gray">Không có doanh số</span></td>
       <td style="text-align:right;font-size:11px;color:#888">Kiểm tra & đẩy bán</td>
       <td class="note-cell" onclick="event.stopPropagation()">${getNoteBtn(p.sku,p.name)}</td>
     </tr>`).join('') :
-    '<tr><td colspan="7" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm đứng tồn 🎉</td></tr>';
+    '<tr><td colspan="8" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm đứng tồn 🎉</td></tr>';
 }
 
 // ── NOTES (localStorage) ─────────────────────────────────────────────────────
@@ -3724,7 +3738,7 @@ function renderSnapshotSection() {
   const WH_COLORS = {'AnAn':'#2563eb','SMN':'#16a34a','SMT':'#f59e0b','Upbase SMN':'#8b5cf6'};
   const WH_LABELS = {'AnAn':'An An','SMN':'SMN','SMT':'SMT','Upbase SMN':'Upbase'};
 
-  ['chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value','chart-snap-excess','chart-snap-nosales'].forEach(id => {
+  ['chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value','chart-snap-excess','chart-snap-nosales','chart-snap-exval'].forEach(id => {
     if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
   });
 
@@ -3750,7 +3764,15 @@ function renderSnapshotSection() {
       </div>
     </div>
     ${hasSurplus ? `
-    <!-- Hàng 2: Cơ cấu tồn kho theo tháng -->
+    <!-- Hàng 2: KPI so sánh giá trị dư -->
+    <div id="ov-exval-kpi-row" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px"></div>
+    <!-- Biểu đồ giá trị dư theo tháng -->
+    <div class="ov-chart-card" style="margin-bottom:12px">
+      <div class="ov-chart-title">📉 Xu hướng giá trị tồn dư theo tháng</div>
+      <div class="ov-chart-sub">Giá trị vượt định mức · Giá trị không doanh số · Tổng giá trị dư</div>
+      <div style="height:210px;position:relative"><canvas id="chart-snap-exval"></canvas></div>
+    </div>
+    <!-- Hàng 3: Cơ cấu tồn kho theo tháng -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px">
       <div class="ov-chart-card" style="margin-bottom:0">
         <div class="ov-chart-title">Cơ cấu tồn kho theo số lượng</div>
@@ -3786,8 +3808,10 @@ function renderSnapshotSection() {
             <th style="text-align:right;padding:8px 10px;color:#555">Giá trị tồn</th>
             ${WH_LIST.map(w=>`<th style="text-align:right;padding:8px 10px;color:${WH_COLORS[w]}">${WH_LABELS[w]}</th>`).join('')}
             <th style="text-align:right;padding:8px 10px;color:#d97706">Dư định mức (sp)</th>
-            <th style="text-align:right;padding:8px 10px;color:#d97706">Giá trị dư</th>
+            <th style="text-align:right;padding:8px 10px;color:#d97706">Giá trị dư ↕định mức</th>
             <th style="text-align:right;padding:8px 10px;color:#dc2626">Không DS (sp)</th>
+            <th style="text-align:right;padding:8px 10px;color:#dc2626">Giá trị không DS</th>
+            <th style="text-align:right;padding:8px 10px;color:#7c3aed">Tổng giá trị dư</th>
             <th style="text-align:right;padding:8px 10px;color:#aaa">Lưu lúc</th>
           </tr>
         </thead>
@@ -3799,21 +3823,28 @@ function renderSnapshotSection() {
             const sx = m.surplusData, px = prev?.surplusData;
             const exd = sx && px ? sx.excess_qty - px.excess_qty : null;
             const nsd = sx && px ? sx.nosales_qty - px.nosales_qty : null;
+            const exvd = sx && px ? (sx.excess_value||0) - (px.excess_value||0) : null;
+            const nsvd = sx && px ? (sx.nosales_value||0) - (px.nosales_value||0) : null;
+            const totvd = sx && px ? ((sx.excess_value||0)+(sx.nosales_value||0)) - ((px.excess_value||0)+(px.nosales_value||0)) : null;
             const rowBg = i % 2 === 0 ? '' : 'background:#fafafa';
             const autoBadge = m.autoSaved ? '<span style="font-size:9px;background:#f0fdf4;color:#15803d;border:1px solid #bbf7d0;padding:1px 5px;border-radius:3px;margin-left:5px">Tự động</span>' : '';
-            const diffSpan = (d, inv) => d===null ? '' : `<span style="font-size:10px;margin-left:3px;color:${(d>0)===inv?'#dc2626':'#16a34a'}">${d>0?'▲+':'▼'}${Math.abs(d).toLocaleString('vi')}</span>`;
+            const diffSpan = (d, inv) => d===null ? '' : `<span style="font-size:10px;margin-left:3px;color:${(d>0)===inv?'#dc2626':'#16a34a'}">${d>0?'▲':'▼'}${fmtVND(Math.abs(d))}</span>`;
+            const diffSpanN = (d, inv) => d===null ? '' : `<span style="font-size:10px;margin-left:3px;color:${(d>0)===inv?'#dc2626':'#16a34a'}">${d>0?'▲+':'▼'}${Math.abs(d).toLocaleString('vi')}</span>`;
+            const totExVal = (sx?.excess_value||0)+(sx?.nosales_value||0);
             return `<tr style="border-bottom:1px solid #f0efeb;${rowBg}">
               <td style="padding:8px 10px;font-weight:700">${m.label}${autoBadge}</td>
-              <td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:600">${m.totalStock.toLocaleString('vi')}${diffSpan(sd,true)}</td>
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;font-weight:600">${m.totalStock.toLocaleString('vi')}${diffSpanN(sd,true)}</td>
               <td style="padding:8px 10px;text-align:right;font-family:monospace">${m.totalValue>0?fmtVND(m.totalValue):'—'}${m.totalValue>0?diffSpan(vd,true):''}</td>
               ${WH_LIST.map(w=>{const q=m.warehouseData?.[w]?.stock||0;return`<td style="padding:8px 10px;text-align:right;color:${WH_COLORS[w]};font-family:monospace">${q>0?q.toLocaleString('vi'):'—'}</td>`}).join('')}
               <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#d97706;font-weight:600">
-                ${sx ? sx.excess_qty.toLocaleString('vi')+'<span style="font-size:10px;color:#aaa;font-weight:400"> ('+sx.excess_count+' SKU)</span>' : '—'}${diffSpan(exd,true)}
+                ${sx ? sx.excess_qty.toLocaleString('vi')+'<span style="font-size:10px;color:#aaa;font-weight:400"> ('+sx.excess_count+' SKU)</span>' : '—'}${diffSpanN(exd,true)}
               </td>
-              <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#d97706">${sx&&sx.excess_value>0?fmtVND(sx.excess_value):'—'}</td>
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#d97706;font-weight:600">${sx&&sx.excess_value>0?fmtVND(sx.excess_value):'—'}${sx&&sx.excess_value>0?diffSpan(exvd,true):''}</td>
               <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#dc2626;font-weight:600">
-                ${sx ? sx.nosales_qty.toLocaleString('vi')+'<span style="font-size:10px;color:#aaa;font-weight:400"> ('+sx.nosales_count+' SKU)</span>' : '—'}${diffSpan(nsd,true)}
+                ${sx ? sx.nosales_qty.toLocaleString('vi')+'<span style="font-size:10px;color:#aaa;font-weight:400"> ('+sx.nosales_count+' SKU)</span>' : '—'}${diffSpanN(nsd,true)}
               </td>
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#dc2626;font-weight:600">${sx&&sx.nosales_value>0?fmtVND(sx.nosales_value):'—'}${sx&&sx.nosales_value>0?diffSpan(nsvd,true):''}</td>
+              <td style="padding:8px 10px;text-align:right;font-family:monospace;color:#7c3aed;font-weight:700">${totExVal>0?fmtVND(totExVal):'—'}${totExVal>0?diffSpan(totvd,true):''}</td>
               <td style="padding:8px 10px;text-align:right;color:#aaa;font-size:11px">${new Date(m.savedAt).toLocaleDateString('vi-VN')}</td>
             </tr>`;
           }).join('')}
@@ -3847,6 +3878,68 @@ function renderSnapshotSection() {
     });
 
     if (hasSurplus) {
+      // ── KPI cards so sánh giá trị dư ─────────────────────────────────────
+      const latestM = months[months.length - 1];
+      const prevM   = months.length >= 2 ? months[months.length - 2] : null;
+      const lx = latestM.surplusData;
+      const px2 = prevM?.surplusData;
+
+      const exVal  = lx?.excess_value  || 0;
+      const nsVal  = lx?.nosales_value || 0;
+      const totVal = exVal + nsVal;
+      const exValPrev  = px2?.excess_value  || 0;
+      const nsValPrev  = px2?.nosales_value || 0;
+      const totValPrev = exValPrev + nsValPrev;
+
+      const deltaCard = (label, cur, prev, color, icon) => {
+        const diff = prev > 0 ? cur - prev : null;
+        const pct  = prev > 0 ? Math.round((cur - prev) / prev * 100) : null;
+        const up   = diff !== null && diff > 0;
+        const diffHtml = diff !== null
+          ? `<div style="font-size:11px;margin-top:5px;font-weight:600;color:${up?'#dc2626':'#16a34a'}">${up?'▲':'▼'} ${fmtVND(Math.abs(diff))} (${up?'+':''}${pct}%)</div>
+             <div style="font-size:10px;color:#aaa;margin-top:1px">so với ${prevM.label}</div>`
+          : `<div style="font-size:10px;color:#aaa;margin-top:5px">Chưa có tháng trước để so sánh</div>`;
+        return `<div style="background:#fff;border:1px solid #e5e5e0;border-top:3px solid ${color};border-radius:10px;padding:14px 16px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:${color};margin-bottom:6px">${icon} ${label}</div>
+          <div style="font-size:20px;font-weight:800;font-family:monospace;color:${color};line-height:1.1">${cur > 0 ? fmtVND(cur) : '<span style="color:#ccc;font-size:14px">Chưa có giá vốn</span>'}</div>
+          ${cur > 0 ? diffHtml : ''}
+          <div style="font-size:10px;color:#aaa;margin-top:4px">${latestM.label}</div>
+        </div>`;
+      };
+
+      const kpiRowEl = document.getElementById('ov-exval-kpi-row');
+      if (kpiRowEl) kpiRowEl.innerHTML =
+        deltaCard('Giá trị dư (vượt định mức)', exVal, exValPrev, '#d97706', '🔴') +
+        deltaCard('Giá trị không doanh số', nsVal, nsValPrev, '#dc2626', '⚫') +
+        deltaCard('Tổng giá trị tồn dư', totVal, totValPrev, '#7c3aed', '💰');
+
+      // ── Biểu đồ trend giá trị dư ─────────────────────────────────────────
+      const scEV = document.getElementById('chart-snap-exval');
+      if (scEV) _ovCharts['chart-snap-exval'] = new Chart(scEV, {
+        type: 'bar',
+        data: { labels, datasets: [
+          { label: 'Vượt định mức', data: months.map(m=>m.surplusData?.excess_value||0),
+            backgroundColor: '#fbbf2499', borderColor: '#d97706', borderWidth:1.5, borderRadius:4, stack:'exval' },
+          { label: 'Không doanh số', data: months.map(m=>m.surplusData?.nosales_value||0),
+            backgroundColor: '#fca5a599', borderColor: '#dc2626', borderWidth:1.5, borderRadius:4, stack:'exval' },
+          { label: 'Tổng giá trị dư', data: months.map(m=>(m.surplusData?.excess_value||0)+(m.surplusData?.nosales_value||0)),
+            type: 'line', borderColor: '#7c3aed', backgroundColor: '#7c3aed22', fill: false,
+            tension: 0.35, pointRadius: 5, pointHoverRadius: 7, borderWidth: 2 }
+        ]},
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } },
+            tooltip: { mode:'index', intersect:false, callbacks:{ label: ctx => ` ${ctx.dataset.label}: ${fmtVND(ctx.parsed.y)||'0'}` } },
+            datalabels: _dlStackPct
+          },
+          scales: {
+            x: { stacked: true },
+            y: { stacked: true, beginAtZero: true, ticks:{ callback: v => fmtVND(v)||'0' } }
+          }
+        }
+      });
+
       const compColors = ['#22c55e','#f59e0b','#ef4444'];
       const compLabels = ['Bình thường','Vượt định mức','Không doanh số'];
       const stackOpts = (fmtFn) => ({
