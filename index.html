@@ -240,14 +240,15 @@ table{table-layout:fixed;width:100%}
 .days-chip-gray{background:#f3f4f6;color:#888}
 .excess-qty{font-family:monospace;font-weight:700;color:#dc2626}
 .surplus-filter-bar{padding:10px 16px;border-bottom:1px solid #f0efeb;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fafafa}
-.surplus-kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px 0 10px;flex-shrink:0}
-.skpi{background:#fff;border-radius:10px;padding:14px 16px;border:1px solid #e5e5e0;position:relative;overflow:hidden}
-.skpi::before{content:'';position:absolute;top:0;left:0;right:0;height:3px}
+.surplus-kpi{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 8px;flex-shrink:0}
+.skpi{background:#fff;border-radius:8px;padding:6px 12px 6px 10px;border:1px solid #e5e5e0;position:relative;overflow:hidden;display:flex;align-items:center;gap:10px;min-width:0}
+.skpi::before{content:'';position:absolute;top:0;left:0;bottom:0;width:3px}
 .skpi-1::before{background:#dc2626}.skpi-2::before{background:#f59e0b}
 .skpi-3::before{background:#9ca3af}.skpi-4::before{background:#2563eb}
-.skpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#888;margin-bottom:6px}
-.skpi-value{font-size:22px;font-weight:700;color:#1a1a1a}
-.skpi-sub{font-size:10px;color:#aaa;margin-top:3px}
+.skpi-label{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:#888;white-space:nowrap}
+.skpi-value{font-size:16px;font-weight:700;color:#1a1a1a;white-space:nowrap}
+.skpi-sub{font-size:10px;color:#aaa;white-space:nowrap}
+.skpi-text{display:flex;flex-direction:column;gap:1px}
 .wh-mini-badge{display:inline-block;font-size:9px;padding:2px 5px;border-radius:3px;background:#f3f4f6;color:#555;margin-left:2px}
 .note-cell{position:relative;}
 .note-btn{font-size:10px;padding:3px 8px;border:1px dashed #d0d0c8;border-radius:4px;background:transparent;color:#aaa;cursor:pointer;white-space:nowrap;transition:all .15s;}
@@ -793,6 +794,7 @@ table{table-layout:fixed;width:100%}
           <col id="s1-col-name"   style="width:200px;min-width:120px">
           <col id="s1-col-wh"     style="width:85px;min-width:60px">
           <col id="s1-col-avg"    style="width:80px;min-width:55px">
+          <col id="s1-col-stockavg" style="width:85px;min-width:60px">
           <col id="s1-col-stock"  style="width:85px;min-width:60px">
           <col id="s1-col-days"   style="width:85px;min-width:60px">
           <col id="s1-col-excess" style="width:85px;min-width:60px">
@@ -805,6 +807,7 @@ table{table-layout:fixed;width:100%}
           <th onclick="sortSurplus(1,'name')">Tên sản phẩm ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-name','s1')"></span></th>
           <th>Kho<span class="resize-handle" onmousedown="startResize(event,'s1-col-wh','s1')"></span></th>
           <th onclick="sortSurplus(1,'avg')" style="text-align:center">Bán TB/ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-avg','s1')"></span></th>
+          <th onclick="sortSurplus(1,'stock_avg')" style="text-align:center;color:#0369a1" title="Bình quân thực tế tính từ biến động tồn kho (có thể khác báo cáo DS)">Thực tế ra hàng ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-stockavg','s1')"></span></th>
           <th onclick="sortSurplus(1,'stock')" style="text-align:center">Tồn hiện tại ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-stock','s1')"></span></th>
           <th onclick="sortSurplus(1,'days_show')" style="text-align:center">Ngày còn ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-days','s1')"></span></th>
           <th onclick="sortSurplus(1,'excess')" style="text-align:right">SL dư ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-excess','s1')"></span></th>
@@ -1761,27 +1764,22 @@ function renderSurplus() {
   const allSurplus = [...group1, ...group2];
 
   // KPI
-  document.getElementById('surplus-kpi-row').innerHTML = `
-    <div class="skpi skpi-1" style="cursor:pointer" onclick="setSurplusStatusBtn('urgent')">
-      <div class="skpi-label">🔴 Ưu tiên đẩy</div>
-      <div class="skpi-value">${allSurplus.filter(p=>getNoteStatus(p.sku)==='urgent').length}</div>
-      <div class="skpi-sub">click để lọc</div></div>
-    <div class="skpi skpi-2" style="cursor:pointer" onclick="setSurplusStatusBtn('nonote')">
-      <div class="skpi-label">— Chưa ghi chú</div>
-      <div class="skpi-value">${allSurplus.filter(p=>!getNoteStatus(p.sku)).length}</div>
-      <div class="skpi-sub">${group1.length+group2.length} đang hiển thị</div></div>
-    <div class="skpi skpi-3" style="cursor:pointer" onclick="setSurplusStatusBtn('km')">
-      <div class="skpi-label">🎁 Hàng KM</div>
-      <div class="skpi-value">${allSurplus.filter(p=>isKM(p.sku)).length}</div>
-      <div class="skpi-sub">click để lọc</div></div>
-    <div class="skpi skpi-4">
-      <div class="skpi-label">Tổng SL dư (định mức)</div>
-      <div class="skpi-value">${totalExcess.toLocaleString('vi')}</div>
-      <div class="skpi-sub">${totalExcessValue > 0 ? '💰 ' + fmtVND(totalExcessValue) : 'Chưa nhập giá vốn'}</div></div>
-    ${totalNoSaleValue > 0 ? `<div class="skpi" style="border-top:3px solid #dc2626">
-      <div class="skpi-label" style="color:#dc2626">⚫ Giá trị không DS</div>
-      <div class="skpi-value" style="font-size:14px;color:#dc2626">${fmtVND(totalNoSaleValue)}</div>
-      <div class="skpi-sub">${group2.length} SKU không có doanh số</div></div>` : ''}`;
+  const _mkCard = (cls, onclick, labelHtml, val, sub, extraStyle='') =>
+    `<div class="skpi ${cls}" ${onclick?`style="cursor:pointer${extraStyle?';'+extraStyle:''}" onclick="${onclick}"`:(extraStyle?`style="${extraStyle}"`:'')}>
+      <div class="skpi-value">${val}</div>
+      <div class="skpi-text"><div class="skpi-label">${labelHtml}</div><div class="skpi-sub">${sub}</div></div>
+    </div>`;
+  document.getElementById('surplus-kpi-row').innerHTML =
+    _mkCard('skpi-1', "setSurplusStatusBtn('urgent')", '🔴 Ưu tiên đẩy',
+      allSurplus.filter(p=>getNoteStatus(p.sku)==='urgent').length, 'click để lọc') +
+    _mkCard('skpi-2', "setSurplusStatusBtn('nonote')", '— Chưa ghi chú',
+      allSurplus.filter(p=>!getNoteStatus(p.sku)).length, `${group1.length+group2.length} đang hiển thị`) +
+    _mkCard('skpi-3', "setSurplusStatusBtn('km')", '🎁 Hàng KM',
+      allSurplus.filter(p=>isKM(p.sku)).length, 'click để lọc') +
+    _mkCard('skpi-4', '', 'Tổng SL dư (định mức)',
+      totalExcess.toLocaleString('vi'), totalExcessValue > 0 ? '💰 ' + fmtVND(totalExcessValue) : 'Chưa nhập giá vốn') +
+    (totalNoSaleValue > 0 ? _mkCard('', '', '<span style="color:#dc2626">⚫ Giá trị không DS</span>',
+      `<span style="color:#dc2626">${fmtVND(totalNoSaleValue)}</span>`, `${group2.length} SKU không có doanh số`, 'border-left:3px solid #dc2626') : '');
 
   // Group 1
   document.getElementById('s1-count').textContent = group1.length;
@@ -1796,6 +1794,7 @@ function renderSurplus() {
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
       <td>${whMini(p._whs)}</td>
       <td style="text-align:center;font-family:monospace">${p._avg}</td>
+      <td style="text-align:center;font-family:monospace;color:#0369a1;font-weight:600">${p._stock_avg > 0 ? p._stock_avg : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
       <td style="text-align:center;font-family:monospace">${p._stock.toLocaleString('vi')}</td>
       <td style="text-align:center">${p._days_actual !== null ? daysChip(p._days_actual) : daysChip(Math.round(p._days))}</td>
       <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">+${(p._stock_avg > 0 ? p._excess_actual : p.excess).toLocaleString('vi')}</td>
@@ -1803,7 +1802,7 @@ function renderSurplus() {
       <td style="text-align:right">${daysChip(p._stock_avg > 0 ? p._excess_days_actual : p.excess_days)}</td>
       <td class="note-cell" onclick="event.stopPropagation()">${getNoteBtn(p.sku,p.name)}</td>
     </tr>`).join('') :
-    '<tr><td colspan="10" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm tồn dư 🎉</td></tr>';
+    '<tr><td colspan="11" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm tồn dư 🎉</td></tr>';
 
   // Group 2
   document.getElementById('s2-count').textContent = group2.length;
