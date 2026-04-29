@@ -325,6 +325,7 @@ table{table-layout:fixed;width:100%}
     <button class="btn" onclick="openCatManager()">🏷 Phân loại hàng <span class="badge-count" id="cat-badge">207</span></button>
     <button class="btn" onclick="toggleConnect()">Kết nối Sheet</button>
     <button id="sync-btn" class="btn btn-primary" onclick="handleSyncClick()">🔄 Đồng bộ Drive</button>
+    <button id="export-html-btn" class="btn" onclick="exportUpdatedHTML()" title="Xuất file HTML có đầy đủ dữ liệu để chia sẻ" style="background:#6d28d9;color:#fff;border-color:#6d28d9">📥 Tải file chia sẻ</button>
   </div>
 </div>
 
@@ -379,6 +380,39 @@ table{table-layout:fixed;width:100%}
         <span id="sync-detail-status" style="font-size:11px;color:#a16207;flex:1"></span>
         <button class="cbtn-close" onclick="signOut()">Đăng xuất</button>
         <button class="cbtn-close" onclick="toggleConnect()">Đóng</button>
+      </div>
+
+      <!-- ☁️ Chia sẻ dữ liệu với nhóm -->
+      <div style="margin-top:14px;border-top:1px solid #e5e7eb;padding-top:12px">
+        <div style="font-size:12px;font-weight:700;color:#7c3aed;margin-bottom:8px">☁️ Chia sẻ dữ liệu với nhóm</div>
+        <div style="font-size:11px;color:#6b7280;margin-bottom:8px">
+          Sau khi đồng bộ, dữ liệu sẽ được lưu tự động lên Google Drive. Người khác mở file HTML sẽ thấy dữ liệu mới nhất mà không cần đồng bộ lại.
+        </div>
+
+        <!-- Trạng thái Drive file -->
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+          <span id="shared-status" style="font-size:11px;color:#9ca3af">⬜ Chưa cấu hình</span>
+          <button id="btn-create-share" class="cbtn" onclick="createAndShareData()" style="font-size:11px;padding:4px 10px;background:#7c3aed;border-color:#7c3aed;color:#fff">
+            🌐 Tạo / Cập nhật link chia sẻ
+          </button>
+          <button id="btn-reset-share" class="cbtn-close" onclick="resetSharedFile()" style="font-size:10px;display:none">Đặt lại</button>
+        </div>
+
+        <!-- API Key input -->
+        <div id="shared-apikey-section">
+          <div style="font-size:10px;color:#9ca3af;margin-bottom:4px">
+            Cần API Key để người khác đọc được dữ liệu (miễn phí):
+            <a href="https://console.cloud.google.com/apis/credentials" target="_blank" style="color:#2563eb">Lấy API Key tại đây</a>
+            → Tạo API Key → (tuỳ chọn) Giới hạn chỉ API "Google Drive API" → Copy
+          </div>
+          <div id="shared-apikey-row" style="display:flex;gap:6px;align-items:center">
+            <input id="api-key-input" placeholder="AIzaSy..." class="ci" style="font-size:11px;font-family:monospace;flex:1"/>
+            <button class="cbtn" onclick="saveApiKey()" style="font-size:11px;padding:4px 10px">💾 Lưu Key</button>
+          </div>
+          <div id="shared-apikey-saved" style="display:none;align-items:center;gap:8px;font-size:11px;color:#15803d">
+            ✅ Đã lưu API Key &nbsp;<button class="cbtn-close" onclick="toggleApiKeyEdit()" style="font-size:10px">Đổi</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -1141,6 +1175,12 @@ function init() {
 
   // Tự động lưu snapshot cuối tháng (lần đầu mở app trong tháng mới)
   setTimeout(() => autoSaveMonthlySnapshot(), 300);
+
+  // Cập nhật UI chia sẻ Drive (nếu đã cấu hình)
+  setTimeout(() => updateSharedUI(), 100);
+
+  // Thử tải dữ liệu mới nhất từ Drive Cloud (nếu đã cấu hình)
+  setTimeout(() => tryFetchSharedDataOnInit(), 800);
 }
 
 function mergeSalesAvg(p) {
@@ -2139,7 +2179,7 @@ function initOAuth() {
   try {
     window._tokenClient = google.accounts.oauth2.initTokenClient({
       client_id: OAUTH_CLIENT_ID,
-      scope: 'https://www.googleapis.com/auth/spreadsheets',
+      scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.file',
       callback: onTokenReceived,
     });
     if (_accessToken && Date.now() < _tokenExpiry) {
@@ -4231,6 +4271,14 @@ async function doSync() {
     if(detailEl) detailEl.textContent='';
     renderAll();
     renderBrandFilterUI();
+    // Tự động đẩy dữ liệu lên Drive (nếu đã cấu hình chia sẻ)
+    const _sfid = getSharedFileId();
+    const _skey = getApiKey();
+    if (_sfid && _skey && _accessToken && Date.now() < _tokenExpiry) {
+      pushSharedData(_accessToken, _sfid)
+        .then(t => console.log('☁️ Đã đẩy dữ liệu lên Drive lúc', t))
+        .catch(e => console.warn('⚠ Không đẩy được lên Drive:', e.message));
+    }
   } else {
     if(!useOAuth && errorWhs.length===4){
       setStatus2('⚠ Chưa publish sheet. Nhấn "Kết nối Sheet" để đăng nhập Google.');
@@ -4242,6 +4290,310 @@ async function doSync() {
       : `❌ Lỗi kho: ${errorWhs.join(', ')}`;
   }
   btn.innerHTML='🔄 Đồng bộ Drive'; btn.disabled=false;
+}
+
+// ── CHIA SẺ DỮ LIỆU QUA GOOGLE DRIVE (Cloud Sync) ──────────────────────────
+
+const SHARED_FILE_KEY  = 'anan_shared_file_id';
+const SHARED_APIKEY_KEY = 'anan_drive_api_key';
+
+function getSharedFileId() { return localStorage.getItem(SHARED_FILE_KEY) || ''; }
+function getApiKey()       { return localStorage.getItem(SHARED_APIKEY_KEY) || ''; }
+
+function saveApiKey() {
+  const val = (document.getElementById('api-key-input').value || '').trim();
+  if (!val || !val.startsWith('AIzaSy')) {
+    alert('API Key không đúng định dạng (phải bắt đầu bằng AIzaSy...)');
+    return;
+  }
+  localStorage.setItem(SHARED_APIKEY_KEY, val);
+  document.getElementById('shared-apikey-row').style.display = 'none';
+  document.getElementById('shared-apikey-saved').style.display = 'flex';
+}
+
+function toggleApiKeyEdit() {
+  const saved = document.getElementById('shared-apikey-saved');
+  const row   = document.getElementById('shared-apikey-row');
+  const input = document.getElementById('api-key-input');
+  saved.style.display = 'none';
+  row.style.display = 'flex';
+  if (input) input.value = getApiKey();
+}
+
+function updateSharedUI() {
+  const fileId = getSharedFileId();
+  const apiKey = getApiKey();
+  const statusEl = document.getElementById('shared-status');
+  const resetBtn  = document.getElementById('btn-reset-share');
+  if (statusEl) {
+    if (fileId) {
+      statusEl.innerHTML = `✅ <b>Đã kết nối Drive</b> · <a href="https://drive.google.com/file/d/${fileId}/view" target="_blank" style="color:#2563eb">Xem file</a>`;
+      statusEl.style.color = '#15803d';
+      if (resetBtn) resetBtn.style.display = '';
+    } else {
+      statusEl.textContent = '⬜ Chưa cấu hình';
+      statusEl.style.color = '#9ca3af';
+      if (resetBtn) resetBtn.style.display = 'none';
+    }
+  }
+  // Hiện trạng API Key
+  const savedEl = document.getElementById('shared-apikey-saved');
+  const rowEl   = document.getElementById('shared-apikey-row');
+  if (apiKey && savedEl && rowEl) {
+    savedEl.style.display = 'flex';
+    rowEl.style.display = 'none';
+  }
+}
+
+function resetSharedFile() {
+  if (!confirm('Xoá liên kết Drive file hiện tại?\nBạn sẽ cần tạo lại link chia sẻ mới.')) return;
+  localStorage.removeItem(SHARED_FILE_KEY);
+  updateSharedUI();
+}
+
+// Tạo file JSON trên Drive và public cho mọi người đọc
+async function createSharedDataFile(token) {
+  const meta = { name: 'AnAn_DuBaoTonKho_Data.json', mimeType: 'application/json',
+                 description: 'Dữ liệu dự báo tồn kho An An — tự động cập nhật khi đồng bộ' };
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(meta)
+  });
+  if (!createRes.ok) throw new Error('Tạo file Drive thất bại: ' + (await createRes.text()).slice(0, 150));
+  const { id: fileId } = await createRes.json();
+  // Cho phép bất kỳ ai đọc (không cần đăng nhập)
+  await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}/permissions`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ role: 'reader', type: 'anyone' })
+  });
+  localStorage.setItem(SHARED_FILE_KEY, fileId);
+  return fileId;
+}
+
+// Đẩy toàn bộ dữ liệu hiện tại lên Drive
+async function pushSharedData(token, fileId) {
+  const safeGet = (key) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
+  const payload = {
+    v: 2,
+    syncTime: new Date().toISOString(),
+    data: S.data,
+    catMap: S.catMap || {},
+    costMap: S.costMap || {},
+    brandMap: safeGet('anan_brand_map'),
+    brandList: safeGet('anan_brand_list'),
+    manualLuong: safeGet('manual_luong'),
+    kmSkus: safeGet('anan_km_skus'),
+    snapshots: safeGet('anan_snapshots'),
+    liveT04: safeGet('anan_live_t04'),
+    surplusNotes: safeGet('surplus_notes'),
+    forecastNotes: safeGet('forecast_notes'),
+    salesAvg: SALES_AVG,
+    salesHist: SALES_HIST,
+  };
+  const body = JSON.stringify(payload);
+  const res = await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=media`, {
+    method: 'PATCH',
+    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body
+  });
+  if (!res.ok) throw new Error('Upload Drive thất bại: ' + (await res.text()).slice(0, 150));
+  return payload.syncTime;
+}
+
+// Người khác dùng API Key (không cần auth) để tải dữ liệu
+async function fetchSharedData(fileId, apiKey) {
+  const headers = {};
+  // Ưu tiên dùng token nếu có; fallback sang API Key
+  if (_accessToken && Date.now() < _tokenExpiry) {
+    headers['Authorization'] = `Bearer ${_accessToken}`;
+  }
+  const keyParam = (!headers['Authorization'] && apiKey) ? `&key=${encodeURIComponent(apiKey)}` : '';
+  const url = `https://www.googleapis.com/drive/v3/files/${encodeURIComponent(fileId)}?alt=media${keyParam}`;
+  const res = await fetch(url, { headers });
+  if (!res.ok) throw new Error('HTTP ' + res.status + ' khi tải dữ liệu từ Drive');
+  return res.json();
+}
+
+// Áp dụng payload vừa tải về vào app state
+function applySharedPayload(payload) {
+  if (!payload || !payload.data || !Array.isArray(payload.data) || payload.data.length === 0) return false;
+  const safeSet = (key, val) => {
+    if (val !== null && val !== undefined)
+      try { localStorage.setItem(key, JSON.stringify(val)); } catch(e) {}
+  };
+  S.data = payload.data.map(p => ({...recompute(p, S.targetDays), cat: (payload.catMap||{})[p.sku]||p.cat||'KHAC', avg_source: p.avg_source}));
+  if (payload.catMap)  S.catMap  = payload.catMap;
+  if (payload.costMap) S.costMap = payload.costMap;
+  safeSet('anan_cat_map',  payload.catMap);
+  safeSet('anan_cost_map', payload.costMap);
+  safeSet('anan_brand_map',  payload.brandMap);
+  safeSet('anan_brand_list', payload.brandList);
+  safeSet('manual_luong',    payload.manualLuong);
+  safeSet('anan_km_skus',    payload.kmSkus);
+  safeSet('anan_snapshots',  payload.snapshots);
+  safeSet('anan_live_t04',   payload.liveT04);
+  safeSet('surplus_notes',   payload.surplusNotes);
+  safeSet('forecast_notes',  payload.forecastNotes);
+  if (payload.salesAvg)  Object.assign(SALES_AVG,  payload.salesAvg);
+  if (payload.salesHist) Object.assign(SALES_HIST, payload.salesHist);
+  if (payload.liveT04 && payload.liveT04.daysDone) {
+    _liveSalesDaysDone = payload.liveT04.daysDone;
+    const mi = payload.liveT04.monthIdx !== undefined ? payload.liveT04.monthIdx : 3;
+    SALES_COMPARE_DATA.skus.forEach(s => {
+      if (payload.liveT04.skuTotals && payload.liveT04.skuTotals[s.sku] !== undefined)
+        s.data[mi] = payload.liveT04.skuTotals[s.sku];
+    });
+    if (payload.liveT04.grandTotal > 0) SALES_COMPARE_DATA.totals[mi] = payload.liveT04.grandTotal;
+  }
+  return true;
+}
+
+// Nút "Tạo / Cập nhật link chia sẻ"
+async function createAndShareData() {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    alert('Vui lòng nhập và lưu API Key trước (xem hướng dẫn bên dưới ô nhập).');
+    return;
+  }
+  if (!_accessToken || Date.now() >= _tokenExpiry) {
+    alert('Phiên đăng nhập đã hết hạn. Vui lòng đóng và đăng nhập lại.');
+    return;
+  }
+  const btn = document.getElementById('btn-create-share');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Đang xử lý...'; }
+  try {
+    let fileId = getSharedFileId();
+    if (!fileId) {
+      fileId = await createSharedDataFile(_accessToken);
+    }
+    if (S.data && S.data.length > 0) {
+      await pushSharedData(_accessToken, fileId);
+    }
+    updateSharedUI();
+    // Lưu thêm vào sync_cache để lần sau biết
+    try {
+      const c = JSON.parse(localStorage.getItem('sync_cache') || '{}');
+      c.sharedFileId = fileId;
+      localStorage.setItem('sync_cache', JSON.stringify(c));
+    } catch(e) {}
+    alert(`✅ Đã tạo link chia sẻ thành công!\n\nBây giờ hãy nhấn "📥 Tải file chia sẻ" ở thanh trên cùng để tải file HTML và gửi cho người khác.\n\nMỗi lần bạn đồng bộ, dữ liệu sẽ tự động cập nhật — người khác chỉ cần làm mới trang.`);
+  } catch(e) {
+    alert('Lỗi: ' + e.message);
+    console.error(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🌐 Tạo / Cập nhật link chia sẻ'; }
+  }
+}
+
+// Khởi động: thử tải dữ liệu từ Drive nếu đã cấu hình
+async function tryFetchSharedDataOnInit() {
+  const fileId = getSharedFileId();
+  const apiKey  = getApiKey();
+  if (!fileId || !apiKey) return false;
+  try {
+    setStatus2('☁️ Đang tải dữ liệu từ Drive...');
+    const payload = await fetchSharedData(fileId, apiKey);
+    const ok = applySharedPayload(payload);
+    if (ok) {
+      const t = payload.syncTime ? new Date(payload.syncTime).toLocaleString('vi-VN') : '?';
+      setStatus2(`<span class="sync-dot"></span>☁️ Dữ liệu từ Drive · cập nhật lúc ${t}`);
+      renderAll();
+      renderBrandFilterUI();
+      return true;
+    }
+  } catch(e) {
+    console.warn('Không tải được dữ liệu từ Drive:', e.message);
+    setStatus2('');
+  }
+  return false;
+}
+
+// ── XUẤT FILE HTML ĐỂ CHIA SẺ ───────────────────────────────────────────────
+function exportUpdatedHTML() {
+  if (!S.data || S.data.length === 0) {
+    alert('Chưa có dữ liệu để xuất. Hãy đồng bộ Drive trước.');
+    return;
+  }
+  const btn = document.getElementById('export-html-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Đang xuất...'; }
+  try {
+    let html = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+
+    // Thay EMBEDDED_DATA bằng dữ liệu hiện tại
+    const edMarker = 'const EMBEDDED_DATA = ';
+    const edStart = html.indexOf(edMarker);
+    if (edStart !== -1) {
+      const edEnd = html.indexOf(';\n', edStart + edMarker.length);
+      if (edEnd !== -1) {
+        html = html.slice(0, edStart) + edMarker + JSON.stringify(S.data) + html.slice(edEnd);
+      }
+    }
+
+    // Thay DEFAULT_CATS bằng catMap hiện tại
+    const dcMarker = 'const DEFAULT_CATS = ';
+    const dcStart = html.indexOf(dcMarker);
+    if (dcStart !== -1) {
+      const dcEnd = html.indexOf(';\n', dcStart + dcMarker.length);
+      if (dcEnd !== -1) {
+        html = html.slice(0, dcStart) + dcMarker + JSON.stringify(S.catMap || {}) + html.slice(dcEnd);
+      }
+    }
+
+    // Thu thập dữ liệu từ localStorage để nhúng vào file
+    const safeGet = (key) => { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : null; } catch(e) { return null; } };
+    const preBaked = {
+      anan_cost_map: S.costMap || safeGet('anan_cost_map'),
+      anan_cat_map: S.catMap || safeGet('anan_cat_map'),
+      anan_brand_map: safeGet('anan_brand_map'),
+      anan_brand_list: safeGet('anan_brand_list'),
+      manual_luong: safeGet('manual_luong'),
+      anan_km_skus: safeGet('anan_km_skus'),
+      anan_snapshots: safeGet('anan_snapshots'),
+      anan_live_t04: safeGet('anan_live_t04'),
+      surplus_notes: safeGet('surplus_notes'),
+      forecast_notes: safeGet('forecast_notes'),
+      anan_last_autosave: localStorage.getItem('anan_last_autosave') || '',
+      // Cấu hình Drive Cloud Sync — để người nhận cũng tự động tải dữ liệu mới nhất
+      anan_shared_file_id: localStorage.getItem('anan_shared_file_id') || '',
+      anan_drive_api_key: localStorage.getItem('anan_drive_api_key') || '',
+    };
+
+    // Loại bỏ các key null để tránh ghi đè dữ liệu hợp lệ bằng null
+    Object.keys(preBaked).forEach(k => { if (preBaked[k] === null) delete preBaked[k]; });
+
+    const preInitScript = `<script id="_prebaked_init">
+(function(){
+  var _PB = ${JSON.stringify(preBaked)};
+  Object.entries(_PB).forEach(function(e){
+    try{ localStorage.setItem(e[0], typeof e[1]==='string' ? e[1] : JSON.stringify(e[1])); }catch(ex){}
+  });
+})();
+<\/script>`;
+
+    // Nhúng script khởi tạo ngay trước </head> (và tránh nhúng 2 lần nếu đã có)
+    if (html.indexOf('id="_prebaked_init"') === -1) {
+      html = html.replace('</head>', preInitScript + '\n</head>');
+    } else {
+      // Cập nhật nội dung _prebaked_init đã có
+      html = html.replace(/<script id="_prebaked_init">[\s\S]*?<\/script>/, preInitScript);
+    }
+
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    const dateStr = new Date().toLocaleDateString('vi-VN').replace(/\//g, '-');
+    a.download = `DuBaoTonKho_${dateStr}.html`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(a.href); }, 500);
+  } catch(e) {
+    alert('Lỗi xuất file: ' + e.message);
+    console.error(e);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '📥 Tải file chia sẻ'; }
+  }
 }
 
 // ── BOOTSTRAP ────────────────────────────────────────────────────────────────
