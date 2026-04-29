@@ -896,6 +896,8 @@ table{table-layout:fixed;width:100%}
 
 <script>
 const _DEFAULT_CLIENT_ID = '959951796150-npqlqmbeq4pp2i1o88gmbtgeq52a70jm.apps.googleusercontent.com';
+const _DEFAULT_DRIVE_API_KEY = 'AIzaSyB3BVPBXqLUPXeJxVI10nlnS5VI2taNvpo';
+const _DEFAULT_SHARED_FILE_ID = '1lCemPKq55bNvd-VlKs5A81QGTLrkIQ9j';
 const NOTES_SHEET_ID = '1wXnjGbY3nFRWtlpKb1c15DrfEEIE3c2VXb3QQ69P4Jc';
 const NOTES_GID = '546068124';
 const SALES_SHEET_ID = '1Ic-58P_h-N2AixISAsJUJ-W6HOzGXRB0nFjeWBZVfZQ';
@@ -4297,8 +4299,8 @@ async function doSync() {
 const SHARED_FILE_KEY  = 'anan_shared_file_id';
 const SHARED_APIKEY_KEY = 'anan_drive_api_key';
 
-function getSharedFileId() { return localStorage.getItem(SHARED_FILE_KEY) || ''; }
-function getApiKey()       { return localStorage.getItem(SHARED_APIKEY_KEY) || ''; }
+function getSharedFileId() { return localStorage.getItem(SHARED_FILE_KEY) || _DEFAULT_SHARED_FILE_ID; }
+function getApiKey()       { return localStorage.getItem(SHARED_APIKEY_KEY) || _DEFAULT_DRIVE_API_KEY; }
 
 function saveApiKey() {
   const val = (document.getElementById('api-key-input').value || '').trim();
@@ -4336,10 +4338,11 @@ function updateSharedUI() {
       if (resetBtn) resetBtn.style.display = 'none';
     }
   }
-  // Hiện trạng API Key
+  // Hiện trạng API Key (bao gồm cả key mặc định đã nhúng sẵn)
   const savedEl = document.getElementById('shared-apikey-saved');
   const rowEl   = document.getElementById('shared-apikey-row');
-  if (apiKey && savedEl && rowEl) {
+  const hasKey  = !!localStorage.getItem(SHARED_APIKEY_KEY) || !!_DEFAULT_DRIVE_API_KEY;
+  if (hasKey && savedEl && rowEl) {
     savedEl.style.display = 'flex';
     rowEl.style.display = 'none';
   }
@@ -4483,11 +4486,6 @@ function showDriveApiError(enableUrl) {
 
 // Nút "Tạo / Cập nhật link chia sẻ"
 async function createAndShareData() {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    alert('Vui lòng nhập và lưu API Key trước (xem hướng dẫn bên dưới ô nhập).');
-    return;
-  }
   if (!_accessToken || Date.now() >= _tokenExpiry) {
     alert('Phiên đăng nhập đã hết hạn. Vui lòng đóng và đăng nhập lại.');
     return;
@@ -4508,7 +4506,8 @@ async function createAndShareData() {
       c.sharedFileId = fileId;
       localStorage.setItem('sync_cache', JSON.stringify(c));
     } catch(e) {}
-    alert(`✅ Đã tạo link chia sẻ thành công!\n\nBây giờ hãy nhấn "📥 Tải file chia sẻ" ở thanh trên cùng để tải file HTML và gửi cho người khác.\n\nMỗi lần bạn đồng bộ, dữ liệu sẽ tự động cập nhật — người khác chỉ cần làm mới trang.`);
+    const _fid = getSharedFileId();
+    alert(`✅ Đã tạo và đẩy dữ liệu lên Drive thành công!\n\n📋 FILE ID (copy gửi cho kỹ thuật để nhúng vào code):\n${_fid}\n\nSau khi file ID được nhúng vào code và deploy lên GitHub:\n→ Mỗi lần bạn bấm "Đồng bộ Drive" = dữ liệu tự cập nhật\n→ Người khác vào link sẽ thấy dữ liệu mới nhất, không cần làm gì thêm.`);
   } catch(e) {
     // Phát hiện lỗi Drive API chưa bật
     const msg = e.message || '';
