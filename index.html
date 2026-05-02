@@ -166,8 +166,8 @@ tbody td{padding:9px 10px;vertical-align:middle;overflow:hidden}
 .page-btn:hover{background:#f0efeb}
 .page-btn.active{background:#1a1a1a;color:#fff;border-color:#1a1a1a}
 .empty-row td{text-align:center;padding:30px;color:#bbb;font-size:12px}
-thead th{position:relative;z-index:100;overflow:visible}
-#js-fixed-thead{position:fixed;z-index:500;display:none;overflow:hidden;pointer-events:auto;box-shadow:0 2px 6px rgba(0,0,0,.3)}
+thead th{position:sticky;top:0;z-index:10;background:#1a1a1a;color:#ccc;border-bottom:1px solid #333;overflow:visible;white-space:nowrap}
+#js-fixed-thead{display:none!important}
 .resize-handle{
   position:absolute;right:-3px;top:0;bottom:0;width:10px;
   cursor:col-resize;z-index:20;user-select:none;
@@ -221,8 +221,8 @@ table{table-layout:fixed;width:100%}
 .surplus-count-gray{background:#f3f4f6;color:#6b7280}
 .surplus-tbl-wrap{overflow-x:auto;overflow-y:auto;flex:1;min-height:0}
 .surplus-table{width:100%;border-collapse:collapse;font-size:12px}
-.surplus-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#888;text-transform:uppercase;letter-spacing:.4px;background:#fafafa;border-bottom:1px solid #f0efeb;cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;z-index:5;overflow:visible}
-.surplus-table th:hover{color:#1a1a1a}
+.surplus-table th{padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ccc;text-transform:uppercase;letter-spacing:.4px;background:#1a1a1a;border-bottom:1px solid #333;cursor:pointer;user-select:none;white-space:nowrap;position:sticky;top:0;z-index:5;overflow:visible}
+.surplus-table th:hover{color:#fff}
 .surplus-table td{padding:9px 12px;border-bottom:1px solid #f7f7f4;vertical-align:middle;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .surplus-table tr:last-child td{border-bottom:none}
 .surplus-table tr:hover td{background:#fafafa;cursor:pointer}
@@ -306,6 +306,25 @@ table{table-layout:fixed;width:100%}
 .ov-section:first-child,.ov-section-first{border-top:none;padding-top:0;margin-top:0}
 .ov-section-head{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
 .ov-section-title{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:#555}
+
+/* ── TODO WIDGET (compact always-visible) ── */
+#todo-widget{position:fixed;top:60px;right:12px;z-index:1100;width:210px;background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;box-shadow:0 4px 16px rgba(0,0,0,.13);display:flex;flex-direction:column;overflow:hidden}
+.todo-panel-head{background:#fef9c3;padding:5px 8px 4px;display:flex;align-items:center;gap:6px;border-bottom:1px solid #fde68a;flex-shrink:0;cursor:default}
+.todo-panel-title{font-size:11px;font-weight:700;color:#92400e;flex:1}
+.todo-panel-clear{font-size:9px;padding:1px 6px;border-radius:4px;border:1px solid #fcd34d;background:#fff;color:#92400e;cursor:pointer;white-space:nowrap}
+.todo-panel-clear:hover{background:#fef3c7}
+.todo-list{max-height:160px;overflow-y:auto;padding:4px 8px;display:flex;flex-direction:column;gap:3px}
+.todo-item{display:flex;align-items:flex-start;gap:5px;font-size:11px;color:#78350f;line-height:1.45}
+.todo-item input[type=checkbox]{margin-top:2px;accent-color:#f59e0b;cursor:pointer;flex-shrink:0;width:12px;height:12px}
+.todo-item-text{flex:1;cursor:pointer;word-break:break-word}
+.todo-item-text.done{text-decoration:line-through;color:#d97706;opacity:.5}
+.todo-item-del{color:#fca5a5;cursor:pointer;font-size:14px;line-height:1;padding:0 1px;opacity:0;transition:opacity .12s;flex-shrink:0}
+.todo-item:hover .todo-item-del{opacity:1}
+.todo-add-row{display:flex;gap:4px;padding:5px 8px;border-top:1px solid #fde68a;flex-shrink:0}
+.todo-input{flex:1;font-size:11px;padding:4px 7px;border:1px solid #fcd34d;border-radius:5px;background:#fff;color:#78350f;outline:none;min-width:0}
+.todo-input:focus{border-color:#f59e0b}
+.todo-add-btn{font-size:10px;padding:4px 8px;border-radius:5px;border:none;background:#f59e0b;color:#fff;cursor:pointer;font-weight:600;white-space:nowrap}
+.todo-add-btn:hover{background:#d97706}
 </style>
 </head>
 <body>
@@ -1181,6 +1200,9 @@ function init() {
   // Tự động lưu snapshot cuối tháng (lần đầu mở app trong tháng mới)
   setTimeout(() => autoSaveMonthlySnapshot(), 300);
 
+  // Render todo widget
+  renderTodos();
+
   // Cập nhật UI chia sẻ Drive (nếu đã cấu hình)
   setTimeout(() => updateSharedUI(), 100);
 
@@ -1303,7 +1325,11 @@ function handleSyncClick() {
 // skipSet: Set SKU vừa được parseSalesCSV cập nhật từ sheet live → không ghi đè
 function initSalesAvgFromStaticData(skipSet) {
   const D = SALES_COMPARE_DATA;
-  const DAYS = [31, 28, 31, 22]; // T01, T02, T03, T04 (đến 22/04)
+  const now0 = new Date();
+  const curM = now0.getMonth(); // 0-indexed
+  const curD = now0.getDate();
+  const DAYS_FULL = [31,28,31,30,31,30,31,31,30,31,30,31];
+  const DAYS = D.months.map((_,i) => i < curM ? DAYS_FULL[i] : (i === curM ? curD : 0));
   D.skus.forEach(s => {
     if (skipSet && skipSet.has(s.sku)) return; // có dữ liệu live → bỏ qua
     const rates = s.data.map((total, i) =>
@@ -3155,53 +3181,53 @@ function renderOverviewIfVisible() {
 
 // ── DỮ LIỆU BÁN HÀNG CỐ ĐỊNH (từ Báo cáo doanh số online 2026) ──────────────
 const SALES_COMPARE_DATA = {
-  months: ['T01/2026','T02/2026','T03/2026','T04/2026'],
-  totals: [62585, 43050, 66674, 46952],
+  months: ['T01/2026','T02/2026','T03/2026','T04/2026','T05/2026'],
+  totals: [62585, 43050, 66674, 46952, 0],
   skus: [
-    { sku:'NK008',     name:'Fysoline hồng 40 ống',                          data:[7409,5635,8853,6330] },
-    { sku:'NK058',     name:'Chilly Protect Detergent (200ml)',               data:[2883,2942,4881,2271] },
-    { sku:'NK061',     name:'Chilly Gel Detergente (200ml)',                  data:[2341,1923,2130,1953] },
-    { sku:'P1530034',  name:'Nước Tắm Sachi Chai 180ml - Sả chanh',          data:[6533,4630,5332,7945] },
-    { sku:'P1530024',  name:'Nước Tắm Sachi Chai 180ml',                     data:[4344,4612,8709,5220] },
-    { sku:'P1630013',  name:'Gạc Sachi 20 gói',                              data:[13180,5831,246,0]  },
-    { sku:'NK060',     name:'Chilly Delicato Detergente (200ml)',             data:[1801,1357,1461,1040] },
-    { sku:'NK010',     name:'Fysoline vàng 20 ống',                          data:[2333,1356,1750,1192] },
-    { sku:'SX012',     name:'Gạc Sachi 30 gói',                              data:[3736,930,3368,1910] },
-    { sku:'SX016',     name:'Nước tắm Sachi 250ml',                          data:[1828,2226,3082,1802] },
-    { sku:'SX011',     name:'Gạc Sachi 10 gói',                              data:[538,864,4473,1387]  },
-    { sku:'SX025',     name:'Tinh dầu tràm khuynh diệp Sachi 30ml',          data:[2050,1175,2603,1363] },
-    { sku:'SX032',     name:'Nước tắm Sachi 500ml',                          data:[1224,5,1234,2769]  },
-    { sku:'P1530035',  name:'Nước tắm Sachi 500ml - Sả chanh',               data:[521,545,2996,2046] },
-    { sku:'P1730032',  name:'Xịt Muỗi 60ml',                                 data:[385,347,1241,874]  },
-    { sku:'P1530041',  name:'Xịt răng miệng Sachi Fibregum (30ml)',          data:[608,1323,3411,1408] },
-    { sku:'NK050',     name:'Fysoline xanh 20 ống',                          data:[1090,640,796,742]  },
-    { sku:'P1530082',  name:'Tinh dầu Tràm-Khuynh diệp Sachi 50ml',         data:[1157,668,1030,730] },
-    { sku:'SX024',     name:'Tinh dầu tràm NC Sachi 30ml',                   data:[1040,566,1128,624] },
-    { sku:'P1530031',  name:'Nước tắm Sachi 250ml - Sả chanh',               data:[1007,862,1652,1321] },
-    { sku:'NK007',     name:'Fysoline hồng 05 ống',                          data:[832,536,859,604]   },
-    { sku:'P1730031',  name:'Xịt Muỗi 100ml',                                data:[529,281,848,634]   },
-    { sku:'NK024',     name:'Syrup Kan 120ml',                                data:[778,516,928,581]   },
-    { sku:'P1530026',  name:'Nước tắm Sachi 350ml',                          data:[949,1143,764,244]  },
-    { sku:'P1530023',  name:'Nước tắm Sachi Hộp 20 gói x 10ml',             data:[427,325,219,131]   },
-    { sku:'NK009',     name:'Fysoline xịt 100ml',                            data:[434,257,381,264]   },
-    { sku:'SX022',     name:'Nước tắm Sachi hộp 10 gói',                    data:[223,86,200,219]    },
-    { sku:'NK059',     name:'Acqua Alle Rose Tonico Rinfrescante',           data:[201,137,215,76]    },
-    { sku:'NK011',     name:'Fysoline vàng 05 ống',                          data:[401,278,401,241]   },
-    { sku:'NK053',     name:'Fysoline xanh 5 ống',                           data:[484,253,144,4]     },
-    { sku:'NK066',     name:'Chilly Gel Detergente Intimo (50ml)',            data:[106,97,174,81]     },
-    { sku:'SX015',     name:'Hạ sốt O+',                                     data:[455,275,516,293]   },
-    { sku:'NK012',     name:'Gel Lavant 2 en 1 500ml',                       data:[95,51,116,92]      },
-    { sku:'NK067',     name:'Chilly Delicato Detergente Intimo (50ml)',       data:[87,62,131,80]      },
-    { sku:'NK029',     name:'Why-Kids Vitamin D3K2 Spray',                   data:[108,72,100,58]     },
-    { sku:'P1530092',  name:'Tinh dầu tràm NC Sachi 50ml',                   data:[289,194,253,219]   },
-    { sku:'NK054',     name:'Khăn Chilly Fresco',                             data:[45,50,46,34]       },
-    { sku:'NK025',     name:'Sérum Physiologique',                            data:[124,0,3,0]         },
-    { sku:'P1530122',  name:'Xịt thảo dược bảo vệ da 60ml',                 data:[0,0,0,101]         },
-    { sku:'NK016',     name:'Prospan Cough Lozenges',                         data:[41,11,16,10]       },
-    { sku:'P1540011',  name:'Kem đa năng',                                    data:[4,0,0,69]          },
-    { sku:'NK014',     name:'Kem hăm',                                        data:[0,0,0,0]           },
-    { sku:'NK055',     name:'Khăn Chilly Delicato',                           data:[4,0,0,0]           },
-    { sku:'SX020',     name:'Hạ sốt 2Y+',                                    data:[2,0,0,0]           },
+    { sku:'NK008',     name:'Fysoline hồng 40 ống',                          data:[7409,5635,8853,6330,0] },
+    { sku:'NK058',     name:'Chilly Protect Detergent (200ml)',               data:[2883,2942,4881,2271,0] },
+    { sku:'NK061',     name:'Chilly Gel Detergente (200ml)',                  data:[2341,1923,2130,1953,0] },
+    { sku:'P1530034',  name:'Nước Tắm Sachi Chai 180ml - Sả chanh',          data:[6533,4630,5332,7945,0] },
+    { sku:'P1530024',  name:'Nước Tắm Sachi Chai 180ml',                     data:[4344,4612,8709,5220,0] },
+    { sku:'P1630013',  name:'Gạc Sachi 20 gói',                              data:[13180,5831,246,0,0]   },
+    { sku:'NK060',     name:'Chilly Delicato Detergente (200ml)',             data:[1801,1357,1461,1040,0] },
+    { sku:'NK010',     name:'Fysoline vàng 20 ống',                          data:[2333,1356,1750,1192,0] },
+    { sku:'SX012',     name:'Gạc Sachi 30 gói',                              data:[3736,930,3368,1910,0]  },
+    { sku:'SX016',     name:'Nước tắm Sachi 250ml',                          data:[1828,2226,3082,1802,0] },
+    { sku:'SX011',     name:'Gạc Sachi 10 gói',                              data:[538,864,4473,1387,0]   },
+    { sku:'SX025',     name:'Tinh dầu tràm khuynh diệp Sachi 30ml',          data:[2050,1175,2603,1363,0] },
+    { sku:'SX032',     name:'Nước tắm Sachi 500ml',                          data:[1224,5,1234,2769,0]    },
+    { sku:'P1530035',  name:'Nước tắm Sachi 500ml - Sả chanh',               data:[521,545,2996,2046,0]   },
+    { sku:'P1730032',  name:'Xịt Muỗi 60ml',                                 data:[385,347,1241,874,0]    },
+    { sku:'P1530041',  name:'Xịt răng miệng Sachi Fibregum (30ml)',          data:[608,1323,3411,1408,0]  },
+    { sku:'NK050',     name:'Fysoline xanh 20 ống',                          data:[1090,640,796,742,0]    },
+    { sku:'P1530082',  name:'Tinh dầu Tràm-Khuynh diệp Sachi 50ml',         data:[1157,668,1030,730,0]   },
+    { sku:'SX024',     name:'Tinh dầu tràm NC Sachi 30ml',                   data:[1040,566,1128,624,0]   },
+    { sku:'P1530031',  name:'Nước tắm Sachi 250ml - Sả chanh',               data:[1007,862,1652,1321,0]  },
+    { sku:'NK007',     name:'Fysoline hồng 05 ống',                          data:[832,536,859,604,0]     },
+    { sku:'P1730031',  name:'Xịt Muỗi 100ml',                                data:[529,281,848,634,0]     },
+    { sku:'NK024',     name:'Syrup Kan 120ml',                                data:[778,516,928,581,0]     },
+    { sku:'P1530026',  name:'Nước tắm Sachi 350ml',                          data:[949,1143,764,244,0]    },
+    { sku:'P1530023',  name:'Nước tắm Sachi Hộp 20 gói x 10ml',             data:[427,325,219,131,0]     },
+    { sku:'NK009',     name:'Fysoline xịt 100ml',                            data:[434,257,381,264,0]     },
+    { sku:'SX022',     name:'Nước tắm Sachi hộp 10 gói',                    data:[223,86,200,219,0]      },
+    { sku:'NK059',     name:'Acqua Alle Rose Tonico Rinfrescante',           data:[201,137,215,76,0]      },
+    { sku:'NK011',     name:'Fysoline vàng 05 ống',                          data:[401,278,401,241,0]     },
+    { sku:'NK053',     name:'Fysoline xanh 5 ống',                           data:[484,253,144,4,0]       },
+    { sku:'NK066',     name:'Chilly Gel Detergente Intimo (50ml)',            data:[106,97,174,81,0]       },
+    { sku:'SX015',     name:'Hạ sốt O+',                                     data:[455,275,516,293,0]     },
+    { sku:'NK012',     name:'Gel Lavant 2 en 1 500ml',                       data:[95,51,116,92,0]        },
+    { sku:'NK067',     name:'Chilly Delicato Detergente Intimo (50ml)',       data:[87,62,131,80,0]        },
+    { sku:'NK029',     name:'Why-Kids Vitamin D3K2 Spray',                   data:[108,72,100,58,0]       },
+    { sku:'P1530092',  name:'Tinh dầu tràm NC Sachi 50ml',                   data:[289,194,253,219,0]     },
+    { sku:'NK054',     name:'Khăn Chilly Fresco',                             data:[45,50,46,34,0]         },
+    { sku:'NK025',     name:'Sérum Physiologique',                            data:[124,0,3,0,0]           },
+    { sku:'P1530122',  name:'Xịt thảo dược bảo vệ da 60ml',                 data:[0,0,0,101,0]           },
+    { sku:'NK016',     name:'Prospan Cough Lozenges',                         data:[41,11,16,10,0]         },
+    { sku:'P1540011',  name:'Kem đa năng',                                    data:[4,0,0,69,0]            },
+    { sku:'NK014',     name:'Kem hăm',                                        data:[0,0,0,0,0]             },
+    { sku:'NK055',     name:'Khăn Chilly Delicato',                           data:[4,0,0,0,0]             },
+    { sku:'SX020',     name:'Hạ sốt 2Y+',                                    data:[2,0,0,0,0]             },
   ]
 };
 
@@ -3214,41 +3240,51 @@ function setSalesTableSort(key) {
 
 function renderSalesCompare() {
   const D = SALES_COMPARE_DATA;
-  const kpiColors = ['#2563eb','#16a34a','#7c3aed','#d97706'];
-  const monthColors = ['#dbeafe','#dcfce7','#ede9fe','#fef3c7'];
+  const _allColors = ['#2563eb','#16a34a','#7c3aed','#d97706','#0891b2','#db2777','#65a30d'];
+  const kpiColors  = D.months.map((_,i) => _allColors[i % _allColors.length]);
+  const monthColors= ['#dbeafe','#dcfce7','#ede9fe','#fef3c7','#cffafe','#fce7f3','#ecfccb'];
 
-  // T04 là tháng chưa kết thúc — dự kiến cả tháng
-  const T04_DAYS_DONE = _liveSalesDaysDone, T04_DAYS_TOTAL = 30;
-  const t04Projected = Math.round(D.totals[3] / T04_DAYS_DONE * T04_DAYS_TOTAL);
+  // Tháng hiện tại (index cuối) chưa kết thúc — tính dự kiến
+  const lastIdx       = D.months.length - 1;
+  const DAYS_IN_MONTH = [31,28,31,30,31,30,31,31,30,31,30,31];
+  const CUR_DAYS_DONE = _liveSalesDaysDone;
+  const CUR_DAYS_TOT  = DAYS_IN_MONTH[lastIdx] || 31;
+  const curMonthName  = D.months[lastIdx];
+  const curProjected  = CUR_DAYS_DONE > 0 && D.totals[lastIdx] > 0
+    ? Math.round(D.totals[lastIdx] / CUR_DAYS_DONE * CUR_DAYS_TOT) : 0;
   const months      = [...D.months];
   const totals      = [...D.totals];
-  const monthLabels = ['T01/2026','T02/2026','T03/2026','T04/2026 *'];
+  const monthLabels = D.months.map((m, i) => i === lastIdx ? m + ' *' : m);
 
   // ── Build sales map { sku → [t1,t2,t3,t4] } ──
   const salesMap = {};
   D.skus.forEach(s => { salesMap[s.sku] = s.data; });
 
   // ── KPI 4 tháng ──
-  const maxTotal = Math.max(...totals, t04Projected);
+  const maxTotal = Math.max(...totals, curProjected, 1);
   const kpiEl = document.getElementById('ov-sales-kpi');
   if (!kpiEl) return;
+  kpiEl.style.gridTemplateColumns = `repeat(${D.months.length},1fr)`;
   kpiEl.innerHTML = monthLabels.map((m, i) => {
+    const isPartial = i === lastIdx;
+    const displayVal = totals[i];
     const prev = i > 0 ? totals[i-1] : null;
-    const diff = prev !== null ? totals[i] - prev : null;
+    const diff = (prev !== null && displayVal > 0 && prev > 0) ? displayVal - prev : null;
     const arrow = diff === null ? '' : diff > 0
       ? `<span style="color:#16a34a;font-size:11px;font-weight:600">▲ +${diff.toLocaleString('vi')}</span>`
       : diff < 0
         ? `<span style="color:#dc2626;font-size:11px;font-weight:600">▼ ${diff.toLocaleString('vi')}</span>`
         : `<span style="color:#aaa;font-size:11px">= không đổi</span>`;
-    const barW = Math.round(totals[i]/maxTotal*100);
-    const isPartial = i === 3;
+    const barW = Math.round(displayVal/maxTotal*100);
+    const dayLabel = isPartial && CUR_DAYS_DONE > 0
+      ? `đến ${CUR_DAYS_DONE}/${lastIdx+1} · dự kiến ~${curProjected.toLocaleString('vi')}` : '';
     return `<div class="ov-brand-card" style="border-top-color:${kpiColors[i]}">
       <div class="ov-brand-name" style="color:${kpiColors[i]}">${m}</div>
-      <div class="ov-brand-value">${totals[i].toLocaleString('vi')}</div>
-      ${isPartial ? `<div style="font-size:10px;color:#d97706;margin-top:2px;margin-bottom:2px">đến ${T04_DAYS_DONE}/04 · dự kiến ~${t04Projected.toLocaleString('vi')}</div>` : ''}
+      <div class="ov-brand-value">${displayVal > 0 ? displayVal.toLocaleString('vi') : '—'}</div>
+      ${dayLabel ? `<div style="font-size:10px;color:#d97706;margin-top:2px;margin-bottom:2px">${dayLabel}</div>` : ''}
       <div style="margin:4px 0;height:5px;background:#f0efeb;border-radius:99px">
         <div style="height:100%;width:${barW}%;background:${kpiColors[i]};border-radius:99px"></div>
-        ${isPartial ? `<div style="height:100%;width:${Math.round(t04Projected/maxTotal*100)}%;background:${kpiColors[i]}44;border-radius:99px;margin-top:-5px"></div>` : ''}
+        ${isPartial && curProjected > 0 ? `<div style="height:100%;width:${Math.round(curProjected/maxTotal*100)}%;background:${kpiColors[i]}44;border-radius:99px;margin-top:-5px"></div>` : ''}
       </div>
       <div class="ov-brand-stat">sản phẩm bán được ${arrow}</div>
     </div>`;
@@ -3264,7 +3300,7 @@ function renderSalesCompare() {
         labels: monthLabels,
         datasets: [
           { label: 'Thực tế', data: totals, backgroundColor: kpiColors, borderRadius: 8 },
-          { label: 'Dự kiến T04', data: [null,null,null,t04Projected],
+          { label: `Dự kiến ${curMonthName}`, data: D.months.map((_,i)=> i===lastIdx && curProjected>0 ? curProjected : null),
             backgroundColor: '#d97706', borderRadius: 8, borderDash:[4,4],
             borderColor: '#d97706', borderWidth: 2, type:'bar', base: 0,
             barPercentage: 0.6, categoryPercentage: 0.8 }
@@ -3358,11 +3394,14 @@ function renderSalesCompare() {
   const colTotals = [0,1,2,3].map(i => filteredSalesSkus.reduce((a,s)=>a+s.data[i],0));
 
   // Tính max mỗi tháng để vẽ bar
-  const maxPerMonth = [0,1,2,3].map(i => Math.max(...allSkus.map(s=>s.data[i]), 1));
+  const maxPerMonth = D.months.map((_,i) => Math.max(...allSkus.map(s=>s.data[i]||0), 1));
+  const _lIdx = D.months.length - 1;
+  const _lDone = _liveSalesDaysDone;
+  const _lProj = _lDone > 0 && D.totals[_lIdx] > 0 ? Math.round(D.totals[_lIdx]/_lDone*(DAYS_IN_MONTH[_lIdx]||31)) : 0;
 
   tableEl.innerHTML = `
     <div style="font-size:10px;color:#d97706;margin-bottom:8px">
-      * T04/2026 tính đến hết ${T04_DAYS_DONE}/04/2026 (${T04_DAYS_DONE}/${T04_DAYS_TOTAL} ngày) · Dự kiến cả tháng: ~${t04Projected.toLocaleString('vi')} sản phẩm
+      * ${D.months[_lIdx]} tính đến ngày ${_lDone}/${_lIdx+1}/2026 · Dự kiến cả tháng: ~${_lProj > 0 ? _lProj.toLocaleString('vi') : '?'} sản phẩm
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead>
@@ -3536,7 +3575,8 @@ function renderBrandSalesSection() {
 
   // Tổng qty + value mỗi nhãn × tháng
   const qtyByBrand = {}, valByBrand = {};
-  orderedBrands.forEach(b => { qtyByBrand[b] = [0,0,0,0]; valByBrand[b] = [0,0,0,0]; });
+  const _nMonths = D.months.length;
+  orderedBrands.forEach(b => { qtyByBrand[b] = Array(_nMonths).fill(0); valByBrand[b] = Array(_nMonths).fill(0); });
   filteredSkus.forEach(s => {
     const b = brandMap[s.sku] || UNBRANDED;
     const cost = getCost(s.sku);
@@ -3554,13 +3594,14 @@ function renderBrandSalesSection() {
       const totalQty = qtyByBrand[b].reduce((a,v)=>a+v,0);
       const totalVal = valByBrand[b].reduce((a,v)=>a+v,0);
       const color = BRAND_PALETTE[i % BRAND_PALETTE.length];
-      const lastQ = qtyByBrand[b][3], prevQ = qtyByBrand[b][2];
+      const _li = D.months.length - 1;
+      const lastQ = qtyByBrand[b][_li], prevQ = _li > 0 ? qtyByBrand[b][_li - 1] : 0;
       const trend = prevQ > 0 ? Math.round((lastQ-prevQ)/prevQ*100) : null;
       return `<div class="ov-brand-card" style="border-top-color:${color}">
         <div class="ov-brand-name" style="color:${color}">${b}</div>
         <div class="ov-brand-value">${totalQty.toLocaleString('vi')} <span style="font-size:11px;font-weight:400;color:#888">sp</span></div>
         ${totalVal > 0 ? `<div style="font-size:13px;font-weight:700;color:#7c3aed;margin-top:3px">${fmtVND(totalVal)}</div>` : ''}
-        ${trend !== null ? `<div style="font-size:10px;margin-top:4px;color:${trend>=0?'#16a34a':'#dc2626'}">${trend>=0?'▲+':'▼'}${Math.abs(trend)}% so T03</div>` : ''}
+        ${trend !== null ? `<div style="font-size:10px;margin-top:4px;color:${trend>=0?'#16a34a':'#dc2626'}">${trend>=0?'▲+':'▼'}${Math.abs(trend)}% so ${D.months[_li-1]}</div>` : ''}
       </div>`;
     }).join('');
   }
@@ -4080,15 +4121,18 @@ function setupFixedHeader(){
   document.body.appendChild(fixed);
 
   function sync(){
+    // Ẩn ngay nếu tab forecast không active
+    const forecastTab = document.getElementById('forecast-tab');
+    if (!forecastTab || forecastTab.style.display === 'none') {
+      fixed.style.display = 'none'; return;
+    }
     const cRect = container.getBoundingClientRect();
     const tRect = thead.getBoundingClientRect();
     if(tRect.bottom < cRect.top + 2){
-      // thead đã cuộn ra ngoài tầm nhìn → hiện clone cố định
       fixed.style.display  = 'block';
       fixed.style.top      = cRect.top  + 'px';
       fixed.style.left     = cRect.left + 'px';
       fixed.style.width    = cRect.width + 'px';
-      // Đồng bộ chính xác chiều rộng từng cột
       const realThs  = thead.querySelectorAll('th');
       fixed.querySelectorAll('th').forEach((th,i)=>{
         if(realThs[i]) th.style.width = realThs[i].getBoundingClientRect().width + 'px';
@@ -4164,18 +4208,19 @@ async function doSync() {
   // Tải báo cáo doanh số
   const now=new Date();
   const monthSheet='T'+String(now.getMonth()+1).padStart(2,'0')+'.'+now.getFullYear();
-  const salesGid = SALES_GID_MAP[monthSheet] || '1207091473';
+  const salesGid = SALES_GID_MAP[monthSheet] || null;
   const newSalesAvg={}, newSalesHist={}, newMonthlyTotals={};
   let salesLoaded=false;
   try {
+    if (!salesGid) { console.log(`[AnAn] Chưa có GID cho ${monthSheet} — bỏ qua doanh số tháng này`); throw new Error('NO_GID'); }
     if(detailEl) detailEl.textContent=`Đang tải doanh số ${monthSheet}...`;
     const text = await fetchFn(SALES_SHEET_ID, salesGid);
     parseSalesCSV(text, newSalesAvg, newSalesHist, newMonthlyTotals);
     salesLoaded=true;
 
     // ── Cập nhật SALES_COMPARE_DATA cho tháng hiện tại ──────────────────────
-    const monthIdx = now.getMonth(); // 0-indexed (April=3)
-    if (monthIdx <= 3 && Object.keys(newMonthlyTotals).length > 1) {
+    const monthIdx = now.getMonth(); // 0-indexed (May=4, April=3, ...)
+    if (monthIdx < SALES_COMPARE_DATA.months.length && Object.keys(newMonthlyTotals).length > 1) {
       const daysDone = newMonthlyTotals._daysDone || 0;
       // Cập nhật từng SKU
       SALES_COMPARE_DATA.skus.forEach(s => {
@@ -4296,6 +4341,58 @@ async function doSync() {
   }
   btn.innerHTML='🔄 Đồng bộ Drive'; btn.disabled=false;
 }
+
+// ── TODO BAR ────────────────────────────────────────────────────────────────
+const TODO_KEY = 'anan_todos';
+
+function loadTodos() { try { return JSON.parse(localStorage.getItem(TODO_KEY) || '[]'); } catch(e) { return []; } }
+function saveTodos(list) { try { localStorage.setItem(TODO_KEY, JSON.stringify(list)); } catch(e) {} }
+
+function renderTodos() {
+  const list = loadTodos();
+  const el = document.getElementById('todo-list');
+  if (!el) return;
+  if (!list.length) {
+    el.innerHTML = '<div style="font-size:10px;color:#d97706;opacity:.6;padding:4px 2px">Chưa có việc nào ↓</div>';
+    return;
+  }
+  el.innerHTML = list.map((t, i) => `
+    <div class="todo-item">
+      <input type="checkbox" ${t.done ? 'checked' : ''} onchange="toggleTodo(${i})"/>
+      <span class="todo-item-text ${t.done ? 'done' : ''}" onclick="toggleTodo(${i})">${t.text}</span>
+      <span class="todo-item-del" onclick="deleteTodo(${i})" title="Xoá">×</span>
+    </div>`).join('');
+}
+
+function addTodo() {
+  const input = document.getElementById('todo-input');
+  const text = (input?.value || '').trim();
+  if (!text) return;
+  const list = loadTodos();
+  list.push({ text, done: false, created: new Date().toISOString() });
+  saveTodos(list);
+  input.value = '';
+  renderTodos();
+}
+
+function toggleTodo(i) {
+  const list = loadTodos();
+  if (list[i]) { list[i].done = !list[i].done; saveTodos(list); renderTodos(); }
+}
+
+function deleteTodo(i) {
+  const list = loadTodos();
+  list.splice(i, 1);
+  saveTodos(list);
+  renderTodos();
+}
+
+function clearDoneTodos() {
+  const list = loadTodos().filter(t => !t.done);
+  saveTodos(list);
+  renderTodos();
+}
+
 
 // ── CHIA SẺ DỮ LIỆU QUA GOOGLE DRIVE (Cloud Sync) ──────────────────────────
 
@@ -4655,7 +4752,21 @@ function exportUpdatedHTML() {
 }
 
 // ── BOOTSTRAP ────────────────────────────────────────────────────────────────
-init();
 </script>
+
+<!-- ── TODO WIDGET (luôn hiển thị, đặt trước init để DOM sẵn sàng) ── -->
+<div id="todo-widget">
+  <div class="todo-panel-head">
+    <span class="todo-panel-title">📝 Việc cần làm</span>
+    <button class="todo-panel-clear" onclick="clearDoneTodos()">Xoá đã xong</button>
+  </div>
+  <div class="todo-list" id="todo-list"></div>
+  <div class="todo-add-row">
+    <input class="todo-input" id="todo-input" placeholder="Thêm việc..." onkeydown="if(event.key==='Enter')addTodo()"/>
+    <button class="todo-add-btn" onclick="addTodo()">+ Thêm</button>
+  </div>
+</div>
+
+<script>init();</script>
 </body>
 </html>
