@@ -1198,7 +1198,7 @@ function init() {
   setTimeout(() => switchTab('overview'), 50);
 
   // Tự động lưu snapshot cuối tháng (lần đầu mở app trong tháng mới)
-  setTimeout(() => autoSaveMonthlySnapshot(), 300);
+  setTimeout(() => autoSaveMonthlySnapshot(false), 300);
 
   // Render todo widget
   renderTodos();
@@ -3745,28 +3745,10 @@ function clearInventorySnapshots() {
   renderSnapshotSection();
 }
 
-function autoSaveMonthlySnapshot() {
-  // Chỉ chạy khi đã có dữ liệu
-  if (!S.data || S.data.length === 0) return;
-
-  const now = new Date();
-  const prevDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
-  const prevLabel = `T${String(prevDate.getMonth()+1).padStart(2,'0')}/${prevDate.getFullYear()}`;
-
-  const snapshots = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}');
-
-  // Đã có snapshot tháng trước → bỏ qua
-  if (snapshots[prevMonth]) return;
-
-  // Đã thử auto-save tháng này rồi → bỏ qua (tránh lưu nhiều lần trong ngày)
-  const lastAuto = localStorage.getItem('anan_last_autosave');
-  if (lastAuto === prevMonth) return;
-
-  // Tính toán dữ liệu để lưu
+// Tính dữ liệu snapshot từ S.data hiện tại
+function _buildSnapshotData(label, now, extra) {
   const brandMap = loadBrandMap();
   const WH_LIST  = ['AnAn','SMN','SMT','Upbase SMN'];
-
   const brandData = {};
   S.data.forEach(p => {
     const b = brandMap[p.sku] || '(Chưa phân nhãn)';
@@ -3774,7 +3756,6 @@ function autoSaveMonthlySnapshot() {
     brandData[b].stock += p.total_stock;
     brandData[b].value += getCost(p.sku) * p.total_stock;
   });
-
   const warehouseData = {};
   WH_LIST.forEach(w => { warehouseData[w] = { stock: 0, value: 0 }; });
   S.data.forEach(p => {
@@ -3785,30 +3766,53 @@ function autoSaveMonthlySnapshot() {
       warehouseData[w].value += qty * cost;
     });
   });
-
-  snapshots[prevMonth] = {
-    label: prevLabel,
-    savedAt: now.toISOString(),
+  return {
+    label,
+    savedAt: (now || new Date()).toISOString(),
     autoSaved: true,
-    totalStock: S.data.reduce((a, p) => a + p.total_stock, 0),
-    totalValue: S.data.reduce((a, p) => a + (getCost(p.sku) * p.total_stock), 0),
+    totalStock: S.data.reduce((a,p) => a + p.total_stock, 0),
+    totalValue: S.data.reduce((a,p) => a + (getCost(p.sku) * p.total_stock), 0),
     skuCount: S.data.length,
     brandData, warehouseData,
-    surplusData: computeSurplusStats()
+    surplusData: computeSurplusStats(),
+    ...extra
   };
+}
+
+function autoSaveMonthlySnapshot(triggeredBySync) {
+  // Chỉ chạy khi đã có dữ liệu
+  if (!S.data || S.data.length === 0) return;
+
+  const now = new Date();
+  const snapshots = JSON.parse(localStorage.getItem(SNAPSHOT_KEY) || '{}');
+
+  // ── 1. Lưu tháng hiện tại (luôn cập nhật sau mỗi sync) ───────────────────
+  const curMonth = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const curLabel = `T${String(now.getMonth()+1).padStart(2,'0')}/${now.getFullYear()}`;
+  snapshots[curMonth] = _buildSnapshotData(curLabel, now, { liveSnapshot: true });
+  console.log(`[AnAn] Cập nhật snapshot tháng hiện tại: ${curLabel}`);
+
+  // ── 2. Lưu tháng trước (chỉ lưu 1 lần, không ghi đè) ────────────────────
+  const prevDate  = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth()+1).padStart(2,'0')}`;
+  const prevLabel = `T${String(prevDate.getMonth()+1).padStart(2,'0')}/${prevDate.getFullYear()}`;
+  if (!snapshots[prevMonth]) {
+    snapshots[prevMonth] = _buildSnapshotData(prevLabel, now, {});
+    localStorage.setItem('anan_last_autosave', prevMonth);
+    console.log(`[AnAn] Tự động lưu snapshot tháng trước: ${prevLabel}`);
+  }
 
   localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snapshots));
-  localStorage.setItem('anan_last_autosave', prevMonth);
-  console.log(`[AnAn] Tự động lưu snapshot ${prevLabel}`);
 
-  // Cập nhật UI nếu đang ở tab overview
-  if (document.getElementById('overview-tab').style.display !== 'none') {
+  // ── Cập nhật UI ───────────────────────────────────────────────────────────
+  if (document.getElementById('overview-tab')?.style.display !== 'none') {
     renderSnapshotSection();
-    // Hiện thông báo nhỏ
-    const el = document.getElementById('snapshot-status');
-    if (el) {
-      el.textContent = `🔄 Đã tự động lưu snapshot ${prevLabel}`;
-      setTimeout(() => { el.textContent = ''; }, 5000);
+    if (triggeredBySync) {
+      const el = document.getElementById('snapshot-status');
+      if (el) {
+        el.textContent = `🔄 Đã tự động cập nhật snapshot ${curLabel}`;
+        setTimeout(() => { el.textContent = ''; }, 4000);
+      }
     }
   }
 }
@@ -4331,6 +4335,8 @@ async function doSync() {
     if(detailEl) detailEl.textContent='';
     renderAll();
     renderBrandFilterUI();
+    // Tự động lưu snapshot tháng hiện tại sau mỗi sync
+    setTimeout(() => autoSaveMonthlySnapshot(true), 200);
     // Tự động đẩy dữ liệu lên Drive (nếu đã cấu hình chia sẻ)
     const _sfid = getSharedFileId();
     const _skey = getApiKey();
