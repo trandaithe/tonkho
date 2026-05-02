@@ -4502,6 +4502,7 @@ async function pushSharedData(token, fileId) {
     liveT04: safeGet('anan_live_t04'),
     surplusNotes: safeGet('surplus_notes'),
     forecastNotes: safeGet('forecast_notes'),
+    todos: safeGet('anan_todos'),
     salesAvg: SALES_AVG,
     salesHist: SALES_HIST,
   };
@@ -4530,6 +4531,28 @@ async function fetchSharedData(fileId, apiKey) {
 }
 
 // Gộp notes: local ưu tiên hơn Drive (local = mới hơn hoặc vừa sửa)
+// Hợp nhất 2 danh sách todo: gộp theo created, ưu tiên trạng thái done mới hơn
+function mergeTodos(local, drive) {
+  const map = {};
+  // Nạp từ Drive trước
+  (drive || []).forEach(t => { if (t.created) map[t.created] = {...t}; });
+  // Gộp local: nếu cùng created → giữ done mới hơn (local thường mới hơn)
+  (local || []).forEach(t => {
+    if (!t.created) { map['_' + Math.random()] = t; return; }
+    if (map[t.created]) {
+      // Giữ trạng thái done của bên nào cập nhật gần hơn
+      map[t.created] = { ...map[t.created], ...t };
+    } else {
+      map[t.created] = {...t};
+    }
+  });
+  // Sắp xếp theo thời gian tạo, todo chưa xong lên trên
+  return Object.values(map).sort((a,b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return (a.created || '') < (b.created || '') ? -1 : 1;
+  });
+}
+
 function mergeNotes(localObj, driveObj) {
   const merged = Object.assign({}, driveObj || {});
   Object.entries(localObj || {}).forEach(([sku, note]) => {
@@ -4562,6 +4585,13 @@ function applySharedPayload(payload) {
   // Ghi chú: gộp local + Drive, local được ưu tiên (tránh mất ghi chú vừa sửa)
   safeSet('surplus_notes',  mergeNotes(safeGet('surplus_notes'),  payload.surplusNotes));
   safeSet('forecast_notes', mergeNotes(safeGet('forecast_notes'), payload.forecastNotes));
+  // Todos: hợp nhất local + Drive theo created timestamp, giữ trạng thái done mới nhất
+  if (payload.todos && Array.isArray(payload.todos)) {
+    const localTodos = safeGet('anan_todos') || [];
+    const merged = mergeTodos(localTodos, payload.todos);
+    safeSet('anan_todos', merged);
+    renderTodos();
+  }
   if (payload.salesAvg)  Object.assign(SALES_AVG,  payload.salesAvg);
   if (payload.salesHist) Object.assign(SALES_HIST, payload.salesHist);
   if (payload.liveT04 && payload.liveT04.daysDone) {
@@ -4719,6 +4749,7 @@ function exportUpdatedHTML() {
       anan_live_t04: safeGet('anan_live_t04'),
       surplus_notes: safeGet('surplus_notes'),
       forecast_notes: safeGet('forecast_notes'),
+      anan_todos: safeGet('anan_todos'),
       anan_last_autosave: localStorage.getItem('anan_last_autosave') || '',
       // Cấu hình Drive Cloud Sync — để người nhận cũng tự động tải dữ liệu mới nhất
       anan_shared_file_id: localStorage.getItem('anan_shared_file_id') || '',
