@@ -4508,7 +4508,7 @@ async function pushSharedData(token, fileId) {
     liveT04: safeGet('anan_live_t04'),
     surplusNotes: safeGet('surplus_notes'),
     forecastNotes: safeGet('forecast_notes'),
-    todos: safeGet('anan_todos'),
+    todos: safeGet('anan_todos') || [],
     salesAvg: SALES_AVG,
     salesHist: SALES_HIST,
   };
@@ -4592,12 +4592,11 @@ function applySharedPayload(payload) {
   safeSet('surplus_notes',  mergeNotes(safeGet('surplus_notes'),  payload.surplusNotes));
   safeSet('forecast_notes', mergeNotes(safeGet('forecast_notes'), payload.forecastNotes));
   // Todos: hợp nhất local + Drive theo created timestamp, giữ trạng thái done mới nhất
-  if (payload.todos && Array.isArray(payload.todos)) {
-    const localTodos = safeGet('anan_todos') || [];
-    const merged = mergeTodos(localTodos, payload.todos);
-    safeSet('anan_todos', merged);
-    renderTodos();
-  }
+  const driveTodos = Array.isArray(payload.todos) ? payload.todos : [];
+  const localTodos = safeGet('anan_todos') || [];
+  const mergedTodos = mergeTodos(localTodos, driveTodos);
+  safeSet('anan_todos', mergedTodos);
+  renderTodos();
   if (payload.salesAvg)  Object.assign(SALES_AVG,  payload.salesAvg);
   if (payload.salesHist) Object.assign(SALES_HIST, payload.salesHist);
   if (payload.liveT04 && payload.liveT04.daysDone) {
