@@ -731,8 +731,14 @@ table{table-layout:fixed;width:100%}
 
     <!-- 5c: Bảng chi tiết SKU -->
     <div class="ov-chart-card">
-      <div class="ov-chart-title">Bảng chi tiết số lượng bán theo SKU</div>
-      <div class="ov-chart-sub" style="margin-bottom:12px">Nguồn: Báo cáo doanh số online 2026 · cột E (Tổng số xuất bán)</div>
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
+        <div class="ov-chart-title" style="margin:0">Bảng chi tiết số lượng bán theo SKU</div>
+        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto">
+          <span style="font-size:11px;color:#888;white-space:nowrap">Lọc nhãn:</span>
+          <div class="filter-group" id="brand-filter-sales-table" style="gap:4px"><button class="fbtn active" style="font-size:11px;padding:3px 10px" onclick="setSalesTableBrand('ALL')">Tất cả</button></div>
+        </div>
+      </div>
+      <div class="ov-chart-sub" style="margin-bottom:10px">Nguồn: Báo cáo doanh số online 2026 · cột E (Tổng số xuất bán)</div>
       <div style="overflow-x:auto" id="ov-sales-table"></div>
     </div>
   </div>
@@ -923,7 +929,7 @@ const _DEFAULT_SHARED_FILE_ID = '1lCemPKq55bNvd-VlKs5A81QGTLrkIQ9j';
 const NOTES_SHEET_ID = '1wXnjGbY3nFRWtlpKb1c15DrfEEIE3c2VXb3QQ69P4Jc';
 const NOTES_GID = '546068124';
 const SALES_SHEET_ID = '1Ic-58P_h-N2AixISAsJUJ-W6HOzGXRB0nFjeWBZVfZQ';
-const SALES_GID_MAP = {'T04.2026':'1207091473','T03.2026':'0','T02.2026':'0','T01.2026':'0'};
+const SALES_GID_MAP = {'T05.2026':'1815617407','T04.2026':'1207091473','T03.2026':'0','T02.2026':'0','T01.2026':'0'};
 const TONGHOP_GID = '0'; // Sheet Tổng hợp tồn
 let OAUTH_CLIENT_ID = localStorage.getItem('oauth_client_id') || _DEFAULT_CLIENT_ID;
 let _accessToken = null;
@@ -1777,9 +1783,15 @@ function getSurplusData() {
   return {group1: filterByLuong(filterByStatus(group1)), group2: filterByLuong(filterByStatus(group2))};
 }
 
-function whMini(whs) {
+function whMini(whs, warehouses) {
   const sh={AnAn:'AnAn',SMN:'SMN',SMT:'SMT','Upbase SMN':'UPB'};
-  return whs.map(w=>`<span class="wh-mini-badge">${sh[w]||w}</span>`).join('');
+  return whs.map(w=>{
+    const qty = warehouses?.[w]?.stock;
+    return `<span class="wh-mini-badge" style="display:inline-flex;flex-direction:column;align-items:center;line-height:1.2;padding:2px 5px;gap:1px">
+      <span>${sh[w]||w}</span>
+      ${qty != null ? `<span style="font-size:9px;font-weight:400;color:#aaa">${qty.toLocaleString('vi')}</span>` : ''}
+    </span>`;
+  }).join('');
 }
 
 function renderSurplus() {
@@ -1818,7 +1830,7 @@ function renderSurplus() {
     <tr onclick="switchTab('forecast');setTimeout(()=>selectProduct('${p.sku}'),100)">
       <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}<br>${luongBadge(getLuong(p))}</td>
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
-      <td>${whMini(p._whs)}</td>
+      <td>${whMini(p._whs, p.warehouses)}</td>
       <td style="text-align:center;font-family:monospace">${p._avg}</td>
       <td style="text-align:center;font-family:monospace;color:#0369a1;font-weight:600">${p._stock_avg > 0 ? p._stock_avg : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
       <td style="text-align:center;font-family:monospace">${p._stock.toLocaleString('vi')}</td>
@@ -1836,7 +1848,7 @@ function renderSurplus() {
     <tr onclick="switchTab('forecast');setTimeout(()=>selectProduct('${p.sku}'),100)">
       <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}<br>${luongBadge(getLuong(p))}</td>
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
-      <td>${whMini(p._whs)}</td>
+      <td>${whMini(p._whs, p.warehouses)}</td>
       <td style="text-align:center;font-family:monospace;font-weight:600">${p._stock.toLocaleString('vi')}</td>
       <td style="text-align:right;font-family:monospace;font-weight:700;color:#dc2626">${p._stock_value > 0 ? fmtVND(p._stock_value) : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
       <td style="text-align:center"><span class="days-chip days-chip-gray">Không có doanh số</span></td>
@@ -2727,6 +2739,8 @@ function renderBrandFilterUI() {
     }).join('');
     el.innerHTML = allBtn + brandBtns;
   });
+  // Cập nhật bộ lọc nhãn riêng của bảng chi tiết doanh số
+  renderSalesTableBrandFilter();
 }
 function setBrandFilter(v) {
   S.activeBrand = v;
@@ -3232,10 +3246,29 @@ const SALES_COMPARE_DATA = {
 };
 
 let _scSort = { key: 'total', dir: 1 }; // dir: 1=cao→thấp, -1=thấp→cao
+let _scBrand = 'ALL'; // bộ lọc nhãn riêng cho bảng chi tiết SKU
 let _liveSalesDaysDone = 22; // số ngày T04 đã có data — cập nhật tự động khi sync
 function setSalesTableSort(key) {
   _scSort = { key, dir: _scSort.key === key ? -_scSort.dir : 1 };
   renderSalesCompare();
+}
+function setSalesTableBrand(brand) {
+  _scBrand = brand;
+  // Cập nhật active button
+  document.querySelectorAll('#brand-filter-sales-table .fbtn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+  renderSalesCompare();
+}
+function renderSalesTableBrandFilter() {
+  const el = document.getElementById('brand-filter-sales-table');
+  if (!el) return;
+  const brandList = loadBrandList();
+  const cur = _scBrand;
+  const btns = [
+    `<button class="fbtn${cur==='ALL'?' active':''}" style="font-size:11px;padding:3px 10px" onclick="setSalesTableBrand('ALL')">Tất cả</button>`,
+    ...brandList.map(b => `<button class="fbtn${cur===b?' active':''}" style="font-size:11px;padding:3px 10px" onclick="setSalesTableBrand('${b}')">${b}</button>`)
+  ];
+  el.innerHTML = btns.join('');
 }
 
 function renderSalesCompare() {
@@ -3353,6 +3386,9 @@ function renderSalesCompare() {
   const tableEl = document.getElementById('ov-sales-table');
   if (!tableEl) return;
 
+  // Render bộ lọc nhãn ngay trên bảng
+  renderSalesTableBrandFilter();
+
   const trendIcon = (data) => {
     const last = data[data.length-1], prev = data[data.length-2];
     if (prev === 0 && last === 0) return '<span style="color:#ccc">—</span>';
@@ -3363,15 +3399,15 @@ function renderSalesCompare() {
     return `<span style="color:#aaa">${pct >= 0?'+':''}${pct}%</span>`;
   };
 
-  // Gộp tất cả SKU từ inventory + data bán hàng (lọc theo nhãn hàng nếu chọn)
+  // Gộp tất cả SKU từ inventory + data bán hàng (lọc theo nhãn bảng riêng)
   const _bm = loadBrandMap();
-  const baseInventory = S.activeBrand === 'ALL'
+  const baseInventory = _scBrand === 'ALL'
     ? S.data
-    : S.data.filter(p => _bm[p.sku] === S.activeBrand);
+    : S.data.filter(p => _bm[p.sku] === _scBrand);
   const allSkus = baseInventory.map(p => {
-    const sd = salesMap[p.sku] || [0,0,0,0];
+    const sd = salesMap[p.sku] || D.months.map(()=>0);
     const total = sd.reduce((a,b)=>a+b,0);
-    const last = sd[3], prev = sd[2];
+    const last = sd[sd.length-1], prev = sd[sd.length-2];
     const trend = prev > 0 ? (last - prev) / prev * 100 : (last > 0 ? 9999 : -9999);
     return { sku: p.sku, name: p.name, cat: p.cat, data: sd, total, trend,
       stock: p.total_stock || 0, days: p.total_days };
@@ -3387,10 +3423,10 @@ function renderSalesCompare() {
     return _scSort.dir * (bv - av);
   });
 
-  // Tổng theo tháng (lọc theo nhãn nếu có)
-  const filteredSalesSkus = S.activeBrand === 'ALL'
+  // Tổng theo tháng (lọc theo nhãn bảng)
+  const filteredSalesSkus = _scBrand === 'ALL'
     ? D.skus
-    : D.skus.filter(s => _bm[s.sku] === S.activeBrand);
+    : D.skus.filter(s => _bm[s.sku] === _scBrand);
   const colTotals = D.months.map((_,i) => filteredSalesSkus.reduce((a,s)=>a+(s.data[i]||0),0));
 
   // Tính max mỗi tháng để vẽ bar
@@ -4701,6 +4737,8 @@ async function tryFetchSharedDataOnInit() {
       setStatus2(`<span class="sync-dot"></span>☁️ Dữ liệu từ Drive · cập nhật lúc ${t}`);
       renderAll();
       renderBrandFilterUI();
+      // Đảm bảo todos luôn được render sau khi nhận Drive data (kể cả code cũ)
+      renderTodos();
       return true;
     }
   } catch(e) {
