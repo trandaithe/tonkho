@@ -729,17 +729,34 @@ table{table-layout:fixed;width:100%}
       </div>
     </div>
 
+    <!-- 5b2: Doanh số theo kênh bán -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px">
+      <div class="ov-chart-card">
+        <div class="ov-chart-title">Doanh số theo kênh bán</div>
+        <div class="ov-chart-sub">TMĐT · TikTok · Online — số lượng bán theo tháng</div>
+        <div style="height:220px;position:relative"><canvas id="chart-channel-qty"></canvas></div>
+      </div>
+      <div class="ov-chart-card">
+        <div class="ov-chart-title">Tỷ lệ kênh bán theo tháng</div>
+        <div class="ov-chart-sub">Phần trăm đóng góp TMĐT · TikTok · Online</div>
+        <div style="height:180px;position:relative"><canvas id="chart-channel-pct"></canvas></div>
+        <div id="channel-kpi-row" style="display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin-top:8px"></div>
+      </div>
+    </div>
+
     <!-- 5c: Bảng chi tiết SKU -->
     <div class="ov-chart-card">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:8px">
         <div class="ov-chart-title" style="margin:0">Bảng chi tiết số lượng bán theo SKU</div>
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-left:auto">
-          <span style="font-size:11px;color:#888;white-space:nowrap">Lọc nhãn:</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto">
+          <input id="sales-table-search" type="text" placeholder="🔍 Tìm SKU / tên..." oninput="setSalesTableSearch(this.value)"
+            style="font-size:11px;padding:4px 10px;border:1px solid #e5e5e0;border-radius:6px;outline:none;width:160px;background:#fafafa;color:#333"/>
+          <span style="font-size:11px;color:#888;white-space:nowrap">Nhãn:</span>
           <div class="filter-group" id="brand-filter-sales-table" style="gap:4px"><button class="fbtn active" style="font-size:11px;padding:3px 10px" onclick="setSalesTableBrand('ALL')">Tất cả</button></div>
         </div>
       </div>
       <div class="ov-chart-sub" style="margin-bottom:10px">Nguồn: Báo cáo doanh số online 2026 · cột E (Tổng số xuất bán)</div>
-      <div style="overflow-x:auto" id="ov-sales-table"></div>
+      <div style="overflow-x:auto;overflow-y:auto;max-height:60vh;border-radius:8px;border:1px solid #e5e5e0" id="ov-sales-table"></div>
     </div>
   </div>
 
@@ -797,13 +814,15 @@ table{table-layout:fixed;width:100%}
   </div>
 
   <!-- Sub-tab bar -->
-  <div class="surplus-sub-bar">
+  <div class="surplus-sub-bar" style="display:flex;align-items:center">
     <button class="surplus-sub-btn active" id="surplus-sub-btn-1" onclick="switchSurplusSubTab(1)">
       📦 Vượt định mức <span class="surplus-sub-badge" id="s1-count">0</span>
     </button>
     <button class="surplus-sub-btn" id="surplus-sub-btn-2" onclick="switchSurplusSubTab(2)">
       🚫 Không có doanh số <span class="surplus-sub-badge" id="s2-count">0</span>
     </button>
+    <input id="surplus-panel-search" type="text" placeholder="🔍 Tìm SKU / tên..." oninput="setSurplusActiveSearch(this.value)"
+      style="margin-left:12px;font-size:11px;padding:4px 10px;border:1px solid #444;border-radius:6px;background:#2a2a2a;color:#ddd;outline:none;width:190px"/>
   </div>
 
   <!-- Panel 1: Tồn quá lâu (có doanh số) -->
@@ -929,7 +948,7 @@ const _DEFAULT_SHARED_FILE_ID = '1lCemPKq55bNvd-VlKs5A81QGTLrkIQ9j';
 const NOTES_SHEET_ID = '1wXnjGbY3nFRWtlpKb1c15DrfEEIE3c2VXb3QQ69P4Jc';
 const NOTES_GID = '546068124';
 const SALES_SHEET_ID = '1Ic-58P_h-N2AixISAsJUJ-W6HOzGXRB0nFjeWBZVfZQ';
-const SALES_GID_MAP = {'T05.2026':'1815617407','T04.2026':'1207091473','T03.2026':'0','T02.2026':'0','T01.2026':'0'};
+const SALES_GID_MAP = {'T05.2026':'1815617407','T04.2026':'1207091473','T03.2026':'2088157119','T02.2026':'1136568171','T01.2026':'387330578'};
 const TONGHOP_GID = '0'; // Sheet Tổng hợp tồn
 let OAUTH_CLIENT_ID = localStorage.getItem('oauth_client_id') || _DEFAULT_CLIENT_ID;
 let _accessToken = null;
@@ -1144,6 +1163,19 @@ document.getElementById('cat-modal').addEventListener('click', function(e) {
 });
 
 // ── INIT ──────────────────────────────────────────────────────────────────────
+// Migration: xóa channelTotals cache sai version (v<3) để re-fetch đúng cột
+try {
+  const _ms = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+  let _msChanged = false;
+  Object.keys(_ms).forEach(k => {
+    if (_ms[k].channelTotals && _ms[k].channelTotals._v !== 3) {
+      _ms[k] = { ..._ms[k], channelTotals: null };
+      _msChanged = true;
+    }
+  });
+  if (_msChanged) { localStorage.setItem('anan_monthly_sales', JSON.stringify(_ms)); console.log('[AnAn] Đã xóa channelTotals cache cũ → sẽ cập nhật khi Sync'); }
+} catch(e) {}
+
 function init() {
   S.catMap = loadCatMap();
   S.costMap = loadCostMap();
@@ -1356,44 +1388,80 @@ function parseSalesCSV(text, avgOut, histOut, monthlyOut) {
   const lines = text.split('\n');
   if(lines.length < 4) return;
 
+
   // Find date columns (row 1, index 1)
   const dateRow = splitCSVRow(lines[1]);
-  const dayCols = []; // {colIdx, dateStr}
+  const dayCols = [];
   for(let i=0;i<dateRow.length;i++) {
     const v = dateRow[i].trim();
-    // Match dd/mm/yyyy or yyyy-mm-dd
     if(/\d{1,2}\/\d{1,2}\/\d{4}/.test(v) || /\d{4}-\d{2}-\d{2}/.test(v)) {
       dayCols.push({col:i, date:v});
     }
   }
-  if(!dayCols.length) return;
-  if(monthlyOut) monthlyOut._daysDone = dayCols.length; // số ngày đã có data
 
-  // Data rows: col1=SKU, per day: colStart=TMDT_SL, +2=Tiktok_SL, +4=Online_SL
+  // Ngay cả khi không tìm thấy cột ngày, vẫn đọc cột E cho tổng tháng
+  if(monthlyOut) monthlyOut._daysDone = dayCols.length || 1;
+
+  // Data rows: bắt đầu từ dòng 4 (index 4) — chỉ đọc dòng có SKU ở cột B
   for(let i=4;i<lines.length;i++) {
     const cols = splitCSVRow(lines[i]);
+    if(cols.length < 3) continue;
+
+    // SKU chỉ lấy từ cột B (cols[1]) — cột B trống thì bỏ qua
     const sku = (cols[1]||'').trim();
-    if(!sku||sku==='nan'||sku==='') continue;
+    if(!sku || sku==='nan' || sku==='SKU' || sku==='Mã SP' || sku==='TỔNG' || sku==='Tổng') continue;
+
+
+    // Parse số Việt Nam: "1.234" → 1234, "41.440.000" → 41440000
+    const parseVN = s => {
+      const v = (s||'').trim().replace(/-/g,'').replace(/\s/g,'');
+      if(!v || v==='0') return 0;
+      // Nếu có dấu phẩy thập phân: "1,5" → 1.5
+      if(/,\d{1,2}$/.test(v)) return parseFloat(v.replace(/\./g,'').replace(',','.')) || 0;
+      // Dấu chấm là phân cách nghìn: "1.234" → 1234
+      return parseFloat(v.replace(/\./g,'')) || 0;
+    };
+    // Cột E (index 4) = tổng xuất bán — NGUỒN CHÍNH
+    const colE = parseVN(cols[4]);
+    // Kênh bán: F=TMĐT qty (cols[5]), H=TikTok qty (cols[7]), J=Online qty (cols[9])
+    const tmdtQty  = parseVN(cols[5]);
+    const tiktokQty= parseVN(cols[7]);
+    const onlineQty= parseVN(cols[9]);
+
+    // Tích lũy channel totals vào monthlyOut
+    if(monthlyOut) {
+      if(!monthlyOut._ch) monthlyOut._ch = {tmdt:0, tiktok:0, online:0};
+      monthlyOut._ch.tmdt   += tmdtQty;
+      monthlyOut._ch.tiktok += tiktokQty;
+      monthlyOut._ch.online += onlineQty;
+    }
+
+    // Daily parsing để tính avg/ngày (nếu có cột ngày)
     const dailyQtys = [];
-    let monthlyTotal = 0;
+    let dailyTotal = 0;
     for(const {col} of dayCols) {
       const tmdt   = parseFloat(cols[col]  ) || 0;
       const tiktok = parseFloat(cols[col+2]) || 0;
       const online = parseFloat(cols[col+4]) || 0;
       const total = tmdt + tiktok + online;
       if(total > 0) dailyQtys.push(total);
-      monthlyTotal += total;
+      dailyTotal += total;
     }
+
+    // Tổng tháng: ưu tiên cột E, fallback daily sum
+    const effectiveTotal = colE > 0 ? colE : dailyTotal;
+
     if(dailyQtys.length >= 2) {
-      // median
       const sorted = [...dailyQtys].sort((a,b)=>a-b);
       const mid = Math.floor(sorted.length/2);
-      const avg = +(sorted.length%2===1 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2).toFixed(1);
-      avgOut[sku] = avg;
+      avgOut[sku] = +(sorted.length%2===1 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2).toFixed(1);
       histOut[sku] = [...dailyQtys].reverse().slice(0,14);
+    } else if(effectiveTotal > 0) {
+      const days = dayCols.length || 1;
+      avgOut[sku] = +(effectiveTotal / days).toFixed(1);
     }
-    // Tổng tháng (dùng để cập nhật SALES_COMPARE_DATA)
-    if(monthlyOut && monthlyTotal > 0) monthlyOut[sku] = Math.round(monthlyTotal);
+
+    if(monthlyOut && effectiveTotal > 0) monthlyOut[sku] = Math.round(effectiveTotal);
   }
 }
 function setStatus2(html){ document.getElementById('status-text').innerHTML=html; }
@@ -1668,10 +1736,15 @@ function switchSurplusSubTab(n) {
   document.getElementById('surplus-sub-btn-2').classList.toggle('active', n===2);
   document.getElementById('surplus-panel-1').classList.toggle('active', n===1);
   document.getElementById('surplus-panel-2').classList.toggle('active', n===2);
+  // Reset ô tìm kiếm khi đổi tab
+  const inp = document.getElementById('surplus-panel-search');
+  if (inp) inp.value = '';
+  SS.search1 = ''; SS.search2 = '';
+  renderSurplus();
 }
 
 // ── SURPLUS STATE ─────────────────────────────────────────────────────────────
-const SS = { wh:'ALL', cat:'ALL', search:'', noteStatus:'ALL', luong:'ALL',
+const SS = { wh:'ALL', cat:'ALL', search:'', search1:'', search2:'', noteStatus:'ALL', luong:'ALL',
   sort1:{key:'days',dir:-1}, sort2:{key:'stock',dir:-1} };
 
 function setSurplusWh(v,el) {
@@ -1683,6 +1756,15 @@ function setSurplusCat(v,el) {
   el.classList.add(el.dataset.active||'active'); renderSurplus();
 }
 function setSurplusSearch(v) { SS.search=v; renderSurplus(); }
+function setSurplusSearch1(v) { SS.search1=v.trim().toLowerCase(); renderSurplus(); }
+function setSurplusSearch2(v) { SS.search2=v.trim().toLowerCase(); renderSurplus(); }
+function setSurplusActiveSearch(v) {
+  // Lọc panel đang hiển thị
+  const q = v.trim().toLowerCase();
+  SS.search1 = document.getElementById('surplus-panel-1')?.classList.contains('active') ? q : SS.search1;
+  SS.search2 = document.getElementById('surplus-panel-2')?.classList.contains('active') ? q : SS.search2;
+  renderSurplus();
+}
 function setSurplusStatus(v,el) {
   SS.noteStatus=v;
   document.querySelectorAll('#surplus-status-filter .fbtn').forEach(b=>b.className='fbtn');
@@ -1795,7 +1877,10 @@ function whMini(whs, warehouses) {
 }
 
 function renderSurplus() {
-  const {group1, group2} = getSurplusData();
+  let {group1, group2} = getSurplusData();
+  // Lọc tìm kiếm riêng từng bảng
+  if (SS.search1) group1 = group1.filter(p => p.sku.toLowerCase().includes(SS.search1) || p.name.toLowerCase().includes(SS.search1));
+  if (SS.search2) group2 = group2.filter(p => p.sku.toLowerCase().includes(SS.search2) || p.name.toLowerCase().includes(SS.search2));
   const totalExcess = group1.reduce((a,p)=>a+(p._stock_avg > 0 ? p._excess_actual : p.excess),0);
   const totalExcessValue = group1.reduce((a,p)=>a+(p._excess_value||0),0);
   const totalNoSaleValue = group2.reduce((a,p)=>a+(p._stock_value||0),0);
@@ -2750,6 +2835,20 @@ function setBrandFilter(v) {
   if (document.getElementById('overview-tab').style.display !== 'none') setTimeout(renderOverviewTab, 50);
 }
 let _ovCharts = {};
+// Helper: tạo chart an toàn — tự destroy chart cũ trên canvas trước khi tạo mới
+function safeChart(id, config) {
+  const canvas = typeof id === 'string' ? document.getElementById(id) : id;
+  if (!canvas) return null;
+  // Destroy bằng _ovCharts reference
+  const key = typeof id === 'string' ? id : (canvas.id || '');
+  if (_ovCharts[key]) { try { _ovCharts[key].destroy(); } catch(e){} delete _ovCharts[key]; }
+  // Destroy bất kỳ chart nào Chart.js còn giữ trên canvas này
+  const existing = typeof Chart !== 'undefined' && Chart.getChart ? Chart.getChart(canvas) : null;
+  if (existing) { try { existing.destroy(); } catch(e){} }
+  const chart = new Chart(canvas, config);
+  if (key) _ovCharts[key] = chart;
+  return chart;
+}
 
 // ── CHARTJS-PLUGIN-DATALABELS: đăng ký toàn cục, tắt mặc định ─────────────
 if (typeof ChartDataLabels !== 'undefined') {
@@ -3012,7 +3111,7 @@ function renderOverviewTab() {
   const colors = stats.map(s => s.color);
 
   // Destroy old charts
-  ['chart-stock','chart-days','chart-value','chart-wh-brand','chart-wh-value','chart-brand-sales-qty','chart-brand-sales-value','chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value'].forEach(id => {
+  ['chart-stock','chart-days','chart-value','chart-wh-brand','chart-wh-value','chart-brand-sales-qty','chart-brand-sales-value','chart-snap-stock','chart-snap-value','chart-snap-wh','chart-snap-comp-qty','chart-snap-comp-value','chart-channel-qty','chart-channel-pct'].forEach(id => {
     if (_ovCharts[id]) { _ovCharts[id].destroy(); delete _ovCharts[id]; }
   });
 
@@ -3247,6 +3346,7 @@ const SALES_COMPARE_DATA = {
 
 let _scSort = { key: 'total', dir: 1 }; // dir: 1=cao→thấp, -1=thấp→cao
 let _scBrand = 'ALL'; // bộ lọc nhãn riêng cho bảng chi tiết SKU
+let _scSearch = '';   // ô tìm kiếm bảng chi tiết SKU
 let _liveSalesDaysDone = 22; // số ngày T04 đã có data — cập nhật tự động khi sync
 function setSalesTableSort(key) {
   _scSort = { key, dir: _scSort.key === key ? -_scSort.dir : 1 };
@@ -3254,9 +3354,12 @@ function setSalesTableSort(key) {
 }
 function setSalesTableBrand(brand) {
   _scBrand = brand;
-  // Cập nhật active button
   document.querySelectorAll('#brand-filter-sales-table .fbtn').forEach(b => b.classList.remove('active'));
   event.target.classList.add('active');
+  renderSalesCompare();
+}
+function setSalesTableSearch(val) {
+  _scSearch = val.trim().toLowerCase();
   renderSalesCompare();
 }
 function renderSalesTableBrandFilter() {
@@ -3289,9 +3392,29 @@ function renderSalesCompare() {
   const totals      = [...D.totals];
   const monthLabels = D.months.map((m, i) => i === lastIdx ? m + ' *' : m);
 
-  // ── Build sales map { sku → [t1,t2,t3,t4] } ──
+  // ── Build sales map { SKU_UPPER → [t1,t2,...,tN] } — key luôn VIẾT HOA để tránh lỗi case-sensitive ──
   const salesMap = {};
-  D.skus.forEach(s => { salesMap[s.sku] = s.data; });
+  D.skus.forEach(s => { salesMap[s.sku.toUpperCase()] = s.data; });
+
+  // Bổ sung từ anan_monthly_sales (tích lũy tất cả tháng)
+  try {
+    const _ms = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+    const _monthKeys = D.months.map(m => {
+      const parts = m.split('/');
+      return `${parts[1]}-${parts[0].replace('T','').padStart(2,'0')}`;
+    });
+    Object.keys(_ms).forEach(monthKey => {
+      const mi = _monthKeys.indexOf(monthKey);
+      if (mi === -1) return;
+      const skuTotals = _ms[monthKey].skuTotals || {};
+      Object.entries(skuTotals).forEach(([sku, qty]) => {
+        const key = sku.toUpperCase(); // normalize về HOA
+        if (!salesMap[key]) salesMap[key] = D.months.map(() => 0);
+        if (qty > 0) salesMap[key][mi] = qty;
+        else if (!salesMap[key][mi]) salesMap[key][mi] = 0;
+      });
+    });
+  } catch(e) {}
 
   // ── KPI 4 tháng ──
   const maxTotal = Math.max(...totals, curProjected, 1);
@@ -3382,6 +3505,84 @@ function renderSalesCompare() {
     });
   }
 
+  // ── Biểu đồ 3: Doanh số theo kênh bán (TMĐT / TikTok / Online) ──
+  {
+    const _ms2 = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+    const _mk2 = D.months.map(m => {
+      const p = m.split('/');
+      return `${p[1]}-${p[0].replace('T','').padStart(2,'0')}`;
+    });
+    const chTmdt   = D.months.map((_,i) => _ms2[_mk2[i]]?.channelTotals?.tmdt   || 0);
+    const chTiktok = D.months.map((_,i) => _ms2[_mk2[i]]?.channelTotals?.tiktok || 0);
+    const hasChannelData = chTmdt.some(v=>v>0) || chTiktok.some(v=>v>0);
+
+    // Chart kênh số lượng (stacked bar)
+    if (_ovCharts['chart-channel-qty']) { _ovCharts['chart-channel-qty'].destroy(); delete _ovCharts['chart-channel-qty']; }
+    const ctxCh1 = document.getElementById('chart-channel-qty');
+    if (ctxCh1 && hasChannelData) {
+      _ovCharts['chart-channel-qty'] = new Chart(ctxCh1, {
+        type: 'bar',
+        data: {
+          labels: monthLabels,
+          datasets: [
+            { label:'TMĐT',   data: chTmdt,   backgroundColor:'#3b82f6', borderRadius:4, stack:'ch' },
+            { label:'TikTok', data: chTiktok, backgroundColor:'#ec4899', borderRadius:4, stack:'ch' },
+          ]
+        },
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          plugins:{
+            legend:{ position:'bottom', labels:{ font:{size:10}, padding:8, boxWidth:10 } },
+            tooltip:{ mode:'index', intersect:false, callbacks:{ label: ctx=>`${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString('vi')} sp` } }
+          },
+          scales:{ x:{stacked:true}, y:{stacked:true, beginAtZero:true, ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v}} }
+        }
+      });
+    } else if (ctxCh1) {
+      ctxCh1.parentElement.innerHTML = '<div style="color:#bbb;font-size:12px;padding:30px;text-align:center">Dữ liệu kênh bán sẽ có sau lần đồng bộ tiếp theo</div>';
+    }
+
+    // Chart tỷ lệ % kênh (doughnut tháng hiện tại)
+    if (_ovCharts['chart-channel-pct']) { _ovCharts['chart-channel-pct'].destroy(); delete _ovCharts['chart-channel-pct']; }
+    const ctxCh2 = document.getElementById('chart-channel-pct');
+    const lastTmdt = chTmdt[chTmdt.length-1], lastTiktok = chTiktok[chTiktok.length-1];
+    const lastTotal = lastTmdt + lastTiktok;
+    if (ctxCh2 && lastTotal > 0) {
+      _ovCharts['chart-channel-pct'] = new Chart(ctxCh2, {
+        type: 'doughnut',
+        data: {
+          labels: ['TMĐT','TikTok'],
+          datasets: [{ data:[lastTmdt,lastTiktok], backgroundColor:['#3b82f6','#ec4899'], borderWidth:2, hoverOffset:8 }]
+        },
+        options: {
+          responsive:true, maintainAspectRatio:false, cutout:'62%',
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label: ctx=>`${ctx.label}: ${ctx.parsed.toLocaleString('vi')} sp (${Math.round(ctx.parsed/lastTotal*100)}%)` } }
+          }
+        }
+      });
+    } else if (ctxCh2) {
+      ctxCh2.parentElement.innerHTML += '';
+    }
+
+    // KPI cards kênh (tháng hiện tại)
+    const chKpiEl = document.getElementById('channel-kpi-row');
+    if (chKpiEl) {
+      const mkCard = (label, val, total, color) => {
+        const pct = total > 0 ? Math.round(val/total*100) : 0;
+        return `<div style="background:#fff;border:1px solid #e5e5e0;border-top:3px solid ${color};border-radius:8px;padding:8px 10px;text-align:center">
+          <div style="font-size:10px;font-weight:700;color:${color};margin-bottom:3px">${label}</div>
+          <div style="font-size:16px;font-weight:800;font-family:monospace;color:${color}">${val.toLocaleString('vi')}</div>
+          <div style="font-size:10px;color:#aaa">${pct}% · ${monthLabels[monthLabels.length-1]}</div>
+        </div>`;
+      };
+      chKpiEl.innerHTML = hasChannelData
+        ? mkCard('TMĐT', lastTmdt, lastTotal, '#3b82f6') + mkCard('TikTok', lastTiktok, lastTotal, '#ec4899')
+        : '<div style="color:#bbb;font-size:11px;text-align:center;grid-column:1/-1;padding:8px">Sync để có dữ liệu kênh</div>';
+    }
+  }
+
   // ── Bảng chi tiết — TẤT CẢ SKU từ S.data ──
   const tableEl = document.getElementById('ov-sales-table');
   if (!tableEl) return;
@@ -3399,19 +3600,50 @@ function renderSalesCompare() {
     return `<span style="color:#aaa">${pct >= 0?'+':''}${pct}%</span>`;
   };
 
-  // Gộp tất cả SKU từ inventory + data bán hàng (lọc theo nhãn bảng riêng)
+  // Gộp tất cả SKU từ inventory + data bán hàng (lọc theo nhãn + tìm kiếm)
   const _bm = loadBrandMap();
-  const baseInventory = _scBrand === 'ALL'
-    ? S.data
-    : S.data.filter(p => _bm[p.sku] === _scBrand);
-  const allSkus = baseInventory.map(p => {
-    const sd = salesMap[p.sku] || D.months.map(()=>0);
-    const total = sd.reduce((a,b)=>a+b,0);
-    const last = sd[sd.length-1], prev = sd[sd.length-2];
-    const trend = prev > 0 ? (last - prev) / prev * 100 : (last > 0 ? 9999 : -9999);
-    return { sku: p.sku, name: p.name, cat: p.cat, data: sd, total, trend,
-      stock: p.total_stock || 0, days: p.total_days };
+
+  // Tập hợp SKU từ inventory — normalize HOA để so sánh nhất quán
+  const invSkuSet = new Set(S.data.map(p => p.sku.toUpperCase()));
+  const baseInventory = S.data.filter(p => {
+    if (_scBrand !== 'ALL' && _bm[p.sku] !== _scBrand) return false;
+    if (_scSearch && !p.sku.toLowerCase().includes(_scSearch) && !p.name.toLowerCase().includes(_scSearch)) return false;
+    return true;
   });
+
+  // Bổ sung SKU có doanh số nhưng KHÔNG có trong inventory (tồn kho = 0 / chưa sync)
+  const extraSalesSkus = [];
+  Object.entries(salesMap).forEach(([sku, data]) => {
+    if (invSkuSet.has(sku.toUpperCase())) return; // đã có trong inventory → bỏ qua
+    const total = data.reduce((a,b)=>a+b,0);
+    if (total === 0) return; // không có doanh số → bỏ qua
+    if (_scBrand !== 'ALL' && _bm[sku] !== _scBrand) return;
+    if (_scSearch && !sku.toLowerCase().includes(_scSearch)) return;
+    // Tìm tên từ SALES_COMPARE_DATA
+    const skuEntry = D.skus.find(s => s.sku === sku);
+    extraSalesSkus.push({
+      sku, name: skuEntry?.name || sku, cat: 'KHAC',
+      data, total,
+      stock: 0, days: null,
+      _salesOnly: true // đánh dấu chỉ có trong bảng doanh số
+    });
+  });
+
+  const allSkus = [
+    ...baseInventory.map(p => {
+      const sd = salesMap[p.sku.toUpperCase()] || D.months.map(()=>0);
+      const total = sd.reduce((a,b)=>a+b,0);
+      const last = sd[sd.length-1], prev = sd[sd.length-2];
+      const trend = prev > 0 ? (last - prev) / prev * 100 : (last > 0 ? 9999 : -9999);
+      return { sku: p.sku, name: p.name, cat: p.cat, data: sd, total, trend,
+        stock: p.total_stock || 0, days: p.total_days };
+    }),
+    ...extraSalesSkus.map(s => {
+      const last = s.data[s.data.length-1], prev = s.data[s.data.length-2];
+      const trend = prev > 0 ? (last - prev) / prev * 100 : (last > 0 ? 9999 : -9999);
+      return { ...s, trend };
+    })
+  ];
   // Sắp theo cột đang chọn
   allSkus.sort((a, b) => {
     let av, bv;
@@ -3423,11 +3655,8 @@ function renderSalesCompare() {
     return _scSort.dir * (bv - av);
   });
 
-  // Tổng theo tháng (lọc theo nhãn bảng)
-  const filteredSalesSkus = _scBrand === 'ALL'
-    ? D.skus
-    : D.skus.filter(s => _bm[s.sku] === _scBrand);
-  const colTotals = D.months.map((_,i) => filteredSalesSkus.reduce((a,s)=>a+(s.data[i]||0),0));
+  // Tổng theo tháng — dùng allSkus (đã gộp cả SKU ngoài danh sách cứng)
+  const colTotals = D.months.map((_,i) => allSkus.reduce((a,s)=>a+(s.data[i]||0),0));
 
   // Tính max mỗi tháng để vẽ bar
   const maxPerMonth = D.months.map((_,i) => Math.max(...allSkus.map(s=>s.data[i]||0), 1));
@@ -3440,8 +3669,8 @@ function renderSalesCompare() {
       * ${D.months[_lIdx]} tính đến ngày ${_lDone}/${_lIdx+1}/2026 · Dự kiến cả tháng: ~${_lProj > 0 ? _lProj.toLocaleString('vi') : '?'} sản phẩm
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
-      <thead>
-        <tr style="background:#1a1a1a;position:sticky;top:0;z-index:3">
+      <thead style="position:sticky;top:0;z-index:10">
+        <tr style="background:#1a1a1a">
           <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ddd;width:90px">SKU</th>
           <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#ddd;cursor:pointer" onclick="setSalesTableSort('name')">Tên sản phẩm ${'name'===_scSort.key?(_scSort.dir===-1?'↓':'↑'):'↕'}</th>
           <th style="padding:8px 12px;text-align:left;font-size:10px;font-weight:700;color:#aaa;width:55px">Loại</th>
@@ -3989,22 +4218,20 @@ function renderSnapshotSection() {
     </div>`;
 
   setTimeout(() => {
-    const sc1 = document.getElementById('chart-snap-stock');
-    if (sc1) _ovCharts['chart-snap-stock'] = new Chart(sc1, {
+    safeChart('chart-snap-stock', {
       type: 'line',
       data: { labels, datasets: [{ label:'Tồn kho (sp)', data: months.map(m=>m.totalStock), borderColor:'#2563eb', backgroundColor:'#2563eb1a', fill:true, tension:0.35, pointRadius:5, pointHoverRadius:7 }] },
       options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y.toLocaleString('vi')+' sp'}} }, scales:{ y:{ beginAtZero:false, ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v} } } }
     });
 
-    const sc2 = document.getElementById('chart-snap-value');
-    if (sc2) _ovCharts['chart-snap-value'] = new Chart(sc2, {
+    safeChart('chart-snap-value', {
       type: 'line',
       data: { labels, datasets: [{ label:'Giá trị tồn', data: months.map(m=>m.totalValue), borderColor:'#7c3aed', backgroundColor:'#7c3aed1a', fill:true, tension:0.35, pointRadius:5, pointHoverRadius:7 }] },
       options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>fmtVND(ctx.parsed.y)}} }, scales:{ y:{ beginAtZero:false, ticks:{callback:v=>fmtVND(v)||'0'} } } }
     });
 
     const sc3 = document.getElementById('chart-snap-wh');
-    if (sc3) _ovCharts['chart-snap-wh'] = new Chart(sc3, {
+    if (sc3) _ovCharts['chart-snap-wh'] = safeChart('chart-snap-wh', {
       type: 'bar',
       data: { labels, datasets: WH_LIST.map(w=>({ label:WH_LABELS[w], stack:'wh', data:months.map(m=>m.warehouseData?.[w]?.stock||0), backgroundColor:WH_COLORS[w], borderRadius:3 })) },
       options: { responsive:true, maintainAspectRatio:false,
@@ -4050,8 +4277,7 @@ function renderSnapshotSection() {
         deltaCard('Tổng giá trị tồn dư', totVal, totValPrev, '#7c3aed', '💰');
 
       // ── Biểu đồ trend giá trị dư ─────────────────────────────────────────
-      const scEV = document.getElementById('chart-snap-exval');
-      if (scEV) _ovCharts['chart-snap-exval'] = new Chart(scEV, {
+      _ovCharts['chart-snap-exval'] = safeChart('chart-snap-exval', {
         type: 'bar',
         data: { labels, datasets: [
           { label: 'Vượt định mức', data: months.map(m=>m.surplusData?.excess_value||0),
@@ -4088,8 +4314,7 @@ function renderSnapshotSection() {
         scales: { x:{stacked:true}, y:{stacked:true, beginAtZero:true, ticks:{callback: v => fmtFn(v)||'0'}} }
       });
 
-      const scCQ = document.getElementById('chart-snap-comp-qty');
-      if (scCQ) _ovCharts['chart-snap-comp-qty'] = new Chart(scCQ, {
+      _ovCharts['chart-snap-comp-qty'] = safeChart('chart-snap-comp-qty', {
         type: 'bar',
         data: { labels, datasets: compLabels.map((lbl, i) => ({
           label: lbl, stack: 'comp',
@@ -4104,8 +4329,7 @@ function renderSnapshotSection() {
         options: stackOpts(v => v >= 1000 ? Math.round(v/1000)+'k sp' : v+' sp')
       });
 
-      const scCV = document.getElementById('chart-snap-comp-value');
-      if (scCV) _ovCharts['chart-snap-comp-value'] = new Chart(scCV, {
+      _ovCharts['chart-snap-comp-value'] = safeChart('chart-snap-comp-value', {
         type: 'bar',
         data: { labels, datasets: compLabels.map((lbl, i) => ({
           label: lbl, stack: 'compv',
@@ -4120,8 +4344,7 @@ function renderSnapshotSection() {
         options: stackOpts(v => fmtVND(v)||'0')
       });
 
-      const sc4 = document.getElementById('chart-snap-excess');
-      if (sc4) _ovCharts['chart-snap-excess'] = new Chart(sc4, {
+      _ovCharts['chart-snap-excess'] = safeChart('chart-snap-excess', {
         type: 'bar',
         data: { labels, datasets: [
           { label:'Số lượng dư (sp)', data: months.map(m=>m.surplusData?.excess_qty||0), backgroundColor:'#fbbf24', borderRadius:4, yAxisID:'y' },
@@ -4133,8 +4356,7 @@ function renderSnapshotSection() {
         }
       });
 
-      const sc5 = document.getElementById('chart-snap-nosales');
-      if (sc5) _ovCharts['chart-snap-nosales'] = new Chart(sc5, {
+      _ovCharts['chart-snap-nosales'] = safeChart('chart-snap-nosales', {
         type: 'bar',
         data: { labels, datasets: [
           { label:'Số lượng tồn (sp)', data: months.map(m=>m.surplusData?.nosales_qty||0), backgroundColor:'#fca5a5', borderRadius:4, yAxisID:'y' },
@@ -4281,17 +4503,55 @@ async function doSync() {
       if (newGrandTotal > 0) SALES_COMPARE_DATA.totals[monthIdx] = newGrandTotal;
       if (daysDone > 0) _liveSalesDaysDone = daysDone;
       // Lưu vào localStorage để restore khi reload
+      const skuTotals = Object.fromEntries(Object.entries(newMonthlyTotals).filter(([k]) => k !== '_daysDone'));
       try {
         localStorage.setItem('anan_live_t04', JSON.stringify({
-          monthIdx, daysDone,
-          skuTotals: Object.fromEntries(Object.entries(newMonthlyTotals).filter(([k]) => k !== '_daysDone')),
-          grandTotal: newGrandTotal,
+          monthIdx, daysDone, skuTotals, grandTotal: newGrandTotal,
           updatedAt: new Date().toISOString()
         }));
       } catch(e2) {}
+
+      // ── Tích lũy dữ liệu tháng vào anan_monthly_sales (không ghi đè tháng cũ) ──
+      // Giúp các SKU ngoài danh sách 44 cứng (vd NK017) có đủ dữ liệu lịch sử
+      try {
+        const monthKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+        const ms = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+        const ch = newMonthlyTotals._ch ? { ...newMonthlyTotals._ch, _v: 3 } : null;
+        ms[monthKey] = { skuTotals, daysDone, channelTotals: ch, updatedAt: new Date().toISOString() };
+        localStorage.setItem('anan_monthly_sales', JSON.stringify(ms));
+      } catch(e2) {}
+
       console.log(`[AnAn] Cập nhật doanh số ${monthSheet}: ${newGrandTotal.toLocaleString('vi')} sp / ${daysDone} ngày`);
     }
   } catch(e){ console.warn('Lỗi doanh số:', e.message); }
+
+  // ── Tải lịch sử các tháng trước vào anan_monthly_sales (1 lần, nếu chưa có) ──
+  try {
+    const ms = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+    const prevMonths = Object.entries(SALES_GID_MAP).filter(([key]) => key !== monthSheet);
+    for (const [mSheet, gid] of prevMonths) {
+      if (!gid || gid === '0') continue;
+      // Tách key: 'T04.2026' → '2026-04'
+      const [mPart, yPart] = mSheet.split('.');
+      const monthKey = `${yPart}-${mPart.replace('T','').padStart(2,'0')}`;
+      // Re-fetch nếu chưa có, cache cũ hơn 3 ngày, chưa có channelTotals, hoặc mapping cũ (v<2)
+      const cacheAge = ms[monthKey] ? (Date.now() - new Date(ms[monthKey].updatedAt||0).getTime()) / 86400000 : Infinity;
+      const chOk = ms[monthKey]?.channelTotals && ms[monthKey].channelTotals._v === 2;
+      if (ms[monthKey] && cacheAge < 3 && chOk) continue;
+      try {
+        if(detailEl) detailEl.textContent = `Đang tải lịch sử doanh số ${mSheet}...`;
+        const hText = await fetchFn(SALES_SHEET_ID, gid);
+        const hAvg={}, hHist={}, hTotals={};
+        parseSalesCSV(hText, hAvg, hHist, hTotals);
+        const hSkuTotals = Object.fromEntries(Object.entries(hTotals).filter(([k]) => !k.startsWith('_')));
+        const hCh = hTotals._ch ? { ...hTotals._ch, _v: 3 } : null;
+        ms[monthKey] = { skuTotals: hSkuTotals, daysDone: hTotals._daysDone || 0, channelTotals: hCh, updatedAt: new Date().toISOString() };
+        console.log(`[AnAn] Đã tải lịch sử doanh số ${mSheet}: ${Object.keys(hSkuTotals).length} SKU`);
+      } catch(e2) { console.warn(`Lỗi tải lịch sử ${mSheet}:`, e2.message); }
+    }
+    localStorage.setItem('anan_monthly_sales', JSON.stringify(ms));
+    if(detailEl) detailEl.textContent = '';
+  } catch(e) { console.warn('Lỗi tải lịch sử doanh số:', e.message); }
 
   // Tải Tổng hợp tồn (cột K = tổng tồn cuối chính xác)
   const totalStockMap = {};
@@ -4371,6 +4631,8 @@ async function doSync() {
     if(detailEl) detailEl.textContent='';
     renderAll();
     renderBrandFilterUI();
+    renderOverviewIfVisible();   // Cập nhật bảng doanh số nếu đang ở tab Tổng quan
+    renderSurplus && (document.getElementById('surplus-tab')?.style.display !== 'none') && renderSurplus();
     // Tự động lưu snapshot tháng hiện tại sau mỗi sync
     setTimeout(() => autoSaveMonthlySnapshot(true), 200);
     // Tự động đẩy dữ liệu lên Drive (nếu đã cấu hình chia sẻ)
@@ -4545,6 +4807,7 @@ async function pushSharedData(token, fileId) {
     surplusNotes: safeGet('surplus_notes'),
     forecastNotes: safeGet('forecast_notes'),
     todos: safeGet('anan_todos') || [],
+    monthlySales: safeGet('anan_monthly_sales'),
     salesAvg: SALES_AVG,
     salesHist: SALES_HIST,
   };
@@ -4624,6 +4887,12 @@ function applySharedPayload(payload) {
   safeSet('anan_km_skus',    payload.kmSkus);
   safeSet('anan_snapshots',  payload.snapshots);
   safeSet('anan_live_t04',   payload.liveT04);
+  // Gộp monthly_sales: giữ lại tháng local có mà Drive chưa có
+  if (payload.monthlySales) {
+    const localMs = safeGet('anan_monthly_sales') || {};
+    const merged = Object.assign({}, payload.monthlySales, localMs);
+    safeSet('anan_monthly_sales', merged);
+  }
   // Ghi chú: gộp local + Drive, local được ưu tiên (tránh mất ghi chú vừa sửa)
   safeSet('surplus_notes',  mergeNotes(safeGet('surplus_notes'),  payload.surplusNotes));
   safeSet('forecast_notes', mergeNotes(safeGet('forecast_notes'), payload.forecastNotes));
@@ -4737,6 +5006,7 @@ async function tryFetchSharedDataOnInit() {
       setStatus2(`<span class="sync-dot"></span>☁️ Dữ liệu từ Drive · cập nhật lúc ${t}`);
       renderAll();
       renderBrandFilterUI();
+      renderOverviewIfVisible();  // Cập nhật bảng doanh số sau khi nhận Drive data
       // Đảm bảo todos luôn được render sau khi nhận Drive data (kể cả code cũ)
       renderTodos();
       return true;
@@ -4793,6 +5063,7 @@ function exportUpdatedHTML() {
       surplus_notes: safeGet('surplus_notes'),
       forecast_notes: safeGet('forecast_notes'),
       anan_todos: safeGet('anan_todos'),
+      anan_monthly_sales: safeGet('anan_monthly_sales'),
       anan_last_autosave: localStorage.getItem('anan_last_autosave') || '',
       // Cấu hình Drive Cloud Sync — để người nhận cũng tự động tải dữ liệu mới nhất
       anan_shared_file_id: localStorage.getItem('anan_shared_file_id') || '',
