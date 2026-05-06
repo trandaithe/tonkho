@@ -4116,13 +4116,18 @@ function computeSurplusStats() {
   let nosales_count = 0, nosales_qty = 0, nosales_value = 0;
   S.data.forEach(p => {
     const cost = getCost(p.sku);
-    const stock = p.total_stock, avg = p.total_avg, days = p.total_days;
-    if (avg > 0 && days !== null && days > TARGET) {
-      const ex = Math.max(0, Math.round(stock - avg * TARGET));
+    const stock = p.total_stock;
+    // Đồng bộ với getSurplusData: ưu tiên thực tế ra hàng (stock_avg), fallback doanh số
+    const tsa = p.total_stock_avg || 0;
+    const ta  = p.total_avg || 0;
+    const effectiveAvg = tsa > 0 ? tsa : ta;
+    const effectiveDays = effectiveAvg > 0 ? stock / effectiveAvg : null;
+    if (effectiveAvg > 0 && effectiveDays !== null && effectiveDays > TARGET) {
+      const ex = Math.max(0, Math.round(stock - effectiveAvg * TARGET));
       excess_count++;
       excess_qty  += ex;
       excess_value += ex * cost;
-    } else if (avg === 0 && stock > 0) {
+    } else if (effectiveAvg === 0 && stock > 0) {
       nosales_count++;
       nosales_qty  += stock;
       nosales_value += stock * cost;
@@ -4387,17 +4392,33 @@ function renderSnapshotSection() {
     </div>`;
 
   setTimeout(() => {
-    safeChart('chart-snap-stock', {
-      type: 'line',
-      data: { labels, datasets: [{ label:'Tồn kho (sp)', data: months.map(m=>m.totalStock), borderColor:'#2563eb', backgroundColor:'#2563eb1a', fill:true, tension:0.35, pointRadius:5, pointHoverRadius:7 }] },
-      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y.toLocaleString('vi')+' sp'}} }, scales:{ y:{ beginAtZero:false, ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v} } } }
-    });
+    (()=>{
+      const stockVals = months.map(m=>m.totalStock).filter(v=>v>0);
+      const sMin = stockVals.length ? Math.min(...stockVals) : 0;
+      const sMax = stockVals.length ? Math.max(...stockVals) : 0;
+      const sRange = sMax - sMin || sMax * 0.1 || 1;
+      const yStockMin = Math.max(0, Math.floor((sMin - sRange * 0.8) / 10000) * 10000);
+      const yStockMax = Math.ceil((sMax + sRange * 0.3) / 10000) * 10000;
+      safeChart('chart-snap-stock', {
+        type: 'line',
+        data: { labels, datasets: [{ label:'Tồn kho (sp)', data: months.map(m=>m.totalStock), borderColor:'#2563eb', backgroundColor:'#2563eb1a', fill:true, tension:0.35, pointRadius:5, pointHoverRadius:7 }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>ctx.parsed.y.toLocaleString('vi')+' sp'}} }, scales:{ y:{ min:yStockMin, max:yStockMax, ticks:{callback:v=>v>=1000?Math.round(v/1000)+'k':v} } } }
+      });
+    })();
 
-    safeChart('chart-snap-value', {
-      type: 'line',
-      data: { labels, datasets: [{ label:'Giá trị tồn', data: months.map(m=>m.totalValue), borderColor:'#7c3aed', backgroundColor:'#7c3aed1a', fill:true, tension:0.35, pointRadius:5, pointHoverRadius:7 }] },
-      options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>fmtVND(ctx.parsed.y)}} }, scales:{ y:{ beginAtZero:false, ticks:{callback:v=>fmtVND(v)||'0'} } } }
-    });
+    (()=>{
+      const valVals = months.map(m=>m.totalValue).filter(v=>v>0);
+      const vMin = valVals.length ? Math.min(...valVals) : 0;
+      const vMax = valVals.length ? Math.max(...valVals) : 0;
+      const vRange = vMax - vMin || vMax * 0.1 || 1;
+      const yValMin = Math.max(0, vMin - vRange * 0.8);
+      const yValMax = vMax + vRange * 0.3;
+      safeChart('chart-snap-value', {
+        type: 'line',
+        data: { labels, datasets: [{ label:'Giá trị tồn', data: months.map(m=>m.totalValue), borderColor:'#7c3aed', backgroundColor:'#7c3aed1a', fill:true, tension:0.35, pointRadius:5, pointHoverRadius:7 }] },
+        options: { responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:ctx=>fmtVND(ctx.parsed.y)}} }, scales:{ y:{ min:yValMin, max:yValMax, ticks:{callback:v=>fmtVND(v)||'0'} } } }
+      });
+    })();
 
     const sc3 = document.getElementById('chart-snap-wh');
     if (sc3) _ovCharts['chart-snap-wh'] = safeChart('chart-snap-wh', {
