@@ -831,6 +831,7 @@ table{table-layout:fixed;width:100%}
     <div class="surplus-section-head">
       <span class="surplus-section-title">📦 Tồn kho vượt định mức — có doanh số nhưng tồn quá lâu</span>
     </div>
+    <div id="surplus-summary-1" style="display:flex;gap:20px;align-items:center;padding:8px 16px;background:#fafaf8;border-bottom:1px solid #e5e5e0;font-size:12px;flex-shrink:0"></div>
     <div class="surplus-tbl-wrap">
       <table class="surplus-table" id="surplus-table-1" style="table-layout:fixed;width:100%">
         <colgroup>
@@ -843,7 +844,6 @@ table{table-layout:fixed;width:100%}
           <col id="s1-col-days"   style="width:85px;min-width:60px">
           <col id="s1-col-excess" style="width:85px;min-width:60px">
           <col id="s1-col-exval"  style="width:110px;min-width:80px">
-          <col id="s1-col-exdays" style="width:105px;min-width:80px">
           <col id="s1-col-note"   style="width:170px;min-width:120px">
         </colgroup>
         <thead><tr>
@@ -851,12 +851,11 @@ table{table-layout:fixed;width:100%}
           <th onclick="sortSurplus(1,'name')">Tên sản phẩm ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-name','s1')"></span></th>
           <th>Kho<span class="resize-handle" onmousedown="startResize(event,'s1-col-wh','s1')"></span></th>
           <th onclick="sortSurplus(1,'avg')" style="text-align:center">Bán TB/ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-avg','s1')"></span></th>
-          <th onclick="sortSurplus(1,'stock_avg')" style="text-align:center;color:#0369a1" title="Bình quân thực tế tính từ biến động tồn kho (có thể khác báo cáo DS)">Thực tế ra hàng ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-stockavg','s1')"></span></th>
+          <th onclick="sortSurplus(1,'stock_avg')" style="text-align:center;color:#0369a1" title="Ra hàng thực tế/ngày — tính từ biến động tồn kho (tồn hôm trước - tồn hôm nay), cập nhật mỗi lần Sync">Thực tế ra hàng ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-stockavg','s1')"></span></th>
           <th onclick="sortSurplus(1,'stock')" style="text-align:center">Tồn hiện tại ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-stock','s1')"></span></th>
           <th onclick="sortSurplus(1,'days_show')" style="text-align:center">Ngày còn ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-days','s1')"></span></th>
           <th onclick="sortSurplus(1,'excess')" style="text-align:right">SL dư ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-excess','s1')"></span></th>
           <th onclick="sortSurplus(1,'excess_value')" style="text-align:right;color:#d97706;cursor:pointer">Giá trị dư ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-exval','s1')"></span></th>
-          <th onclick="sortSurplus(1,'excess_days_show')" style="text-align:right">Dư bao nhiêu ngày ↕<span class="resize-handle" onmousedown="startResize(event,'s1-col-exdays','s1')"></span></th>
           <th>Ghi chú</th>
         </tr></thead>
         <tbody id="surplus-tbody-1"></tbody>
@@ -871,6 +870,7 @@ table{table-layout:fixed;width:100%}
     <div class="surplus-section-head">
       <span class="surplus-section-title">🚫 Không có doanh số — tồn kho không có chuyển động</span>
     </div>
+    <div id="surplus-summary-2" style="display:flex;gap:20px;align-items:center;padding:8px 16px;background:#fafaf8;border-bottom:1px solid #e5e5e0;font-size:12px;flex-shrink:0"></div>
     <div class="surplus-tbl-wrap">
       <table class="surplus-table" id="surplus-table-2" style="table-layout:fixed;width:100%">
         <colgroup>
@@ -889,8 +889,7 @@ table{table-layout:fixed;width:100%}
           <th>Kho<span class="resize-handle" onmousedown="startResize(event,'s2-col-wh','s2')"></span></th>
           <th onclick="sortSurplus(2,'stock')" style="text-align:center">Tồn hiện tại ↕<span class="resize-handle" onmousedown="startResize(event,'s2-col-stock','s2')"></span></th>
           <th onclick="sortSurplus(2,'stock_value')" style="text-align:right;color:#dc2626;cursor:pointer">Giá trị tồn ↕<span class="resize-handle" onmousedown="startResize(event,'s2-col-sval','s2')"></span></th>
-          <th style="text-align:center">Trạng thái<span class="resize-handle" onmousedown="startResize(event,'s2-col-status','s2')"></span></th>
-          <th style="text-align:right">Đề xuất<span class="resize-handle" onmousedown="startResize(event,'s2-col-suggest','s2')"></span></th>
+          <th style="text-align:center" title="Nhấn vào ô để nhập avg bán/ngày thủ công">Avg/ngày ✏️<span class="resize-handle" onmousedown="startResize(event,'s2-col-status','s2')"></span></th>
           <th>Ghi chú</th>
         </tr></thead>
         <tbody id="surplus-tbody-2"></tbody>
@@ -1213,8 +1212,32 @@ function init() {
   } catch(e) { console.warn('Không restore live T04:', e.message); }
 
   // Luôn cập nhật SALES_AVG từ SALES_COMPARE_DATA (44 SKU đã biết)
-  // Gọi trước khi build S.data để mergeSalesAvg dùng đúng giá trị
   initSalesAvgFromStaticData();
+  // Bổ sung SALES_AVG cho SKU ngoài 44 SKU cứng (vd VTT0241) từ anan_monthly_sales
+  try {
+    const _msAll = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+    const _n = new Date();
+    const _keys = [
+      `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}`,
+      `${_n.getMonth()===0?_n.getFullYear()-1:_n.getFullYear()}-${String(_n.getMonth()===0?12:_n.getMonth()).padStart(2,'0')}`
+    ];
+    const _skuRates = {};
+    _keys.forEach(k => {
+      const e = _msAll[k];
+      if (!e || !e.skuTotals || !e.daysDone) return;
+      Object.entries(e.skuTotals).forEach(([sku, qty]) => {
+        if (!_skuRates[sku]) _skuRates[sku] = [];
+        if (qty > 0) _skuRates[sku].push(+(qty / e.daysDone).toFixed(1));
+      });
+    });
+    Object.entries(_skuRates).forEach(([sku, rates]) => {
+      if (SALES_AVG[sku] || SALES_AVG[sku.toUpperCase()] || SALES_AVG[sku.toLowerCase()]) return;
+      if (!rates.length) return;
+      const sorted = [...rates].sort((a,b)=>a-b);
+      const mid = Math.floor(sorted.length/2);
+      SALES_AVG[sku] = Math.round(((sorted.length%2===1?sorted[mid]:(sorted[mid-1]+sorted[mid])/2)) * 10) / 10;
+    });
+  } catch(_e) {}
 
   if(!usedCache){
     S.data = EMBEDDED_DATA.map(p => {
@@ -1279,8 +1302,31 @@ function mergeSalesAvg(p) {
   }
 
   // Ưu tiên dùng avg từ báo cáo doanh số nếu có
-  const salesAvg = SALES_AVG[p.sku] || SALES_AVG[p.sku?.toUpperCase()] || SALES_AVG[p.sku?.toLowerCase()];
+  // Manual avg override (người dùng nhập thủ công cho SKU không có trong báo cáo)
+  const _manualAvg = getManualAvg(p.sku);
+  let salesAvg = _manualAvg > 0 ? _manualAvg : (SALES_AVG[p.sku] || SALES_AVG[p.sku?.toUpperCase()] || SALES_AVG[p.sku?.toLowerCase()]);
   const salesHist = SALES_HIST[p.sku] || SALES_HIST[p.sku?.toUpperCase()] || SALES_HIST[p.sku?.toLowerCase()];
+
+  // Fallback: tính avg từ anan_monthly_sales nếu SALES_AVG chưa có (SKU ngoài 44 SKU cứng)
+  if (!salesAvg || salesAvg <= 0) {
+    try {
+      const _ms2 = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+      const _n2 = new Date();
+      const _mk = [
+        `${_n2.getFullYear()}-${String(_n2.getMonth()+1).padStart(2,'0')}`,
+        `${_n2.getMonth()===0?_n2.getFullYear()-1:_n2.getFullYear()}-${String(_n2.getMonth()===0?12:_n2.getMonth()).padStart(2,'0')}`
+      ];
+      const _rates = [];
+      _mk.forEach(k => {
+        const e = _ms2[k];
+        if (!e || !e.skuTotals || !e.daysDone) return;
+        const qty = e.skuTotals[p.sku] || e.skuTotals[p.sku?.toUpperCase()] || e.skuTotals[p.sku?.toLowerCase()] || 0;
+        if (qty > 0) _rates.push(qty / e.daysDone);
+      });
+      if (_rates.length > 0) salesAvg = +(_rates.reduce((a,b)=>a+b,0) / _rates.length).toFixed(1);
+    } catch(_e2) {}
+  }
+
   if (!salesAvg || salesAvg <= 0) return p;
 
   // Distribute sales avg across warehouses weighted by stock
@@ -1309,12 +1355,15 @@ function recompute(p, days) {
   const whs = {};
   for (const [wh, d] of Object.entries(p.warehouses)) {
     const avg=d.avg, stock=d.stock;
-    whs[wh] = {...d, needed:avg>0?Math.max(0,Math.round(avg*days-stock)):0, days_left:avg>0?+(stock/avg).toFixed(1):null};
+    // Ưu tiên stock_avg cho days_left (thực tế ra hàng), fallback avg (doanh số)
+    const eff = (d.stock_avg||0) > 0 ? d.stock_avg : avg;
+    whs[wh] = {...d, needed:eff>0?Math.max(0,Math.round(eff*days-stock)):0, days_left:eff>0?+(stock/eff).toFixed(1):null};
   }
-  const ta=p.total_avg, ts=p.total_stock;
+  const ta=p.total_avg, tsa=p.total_stock_avg||0, ts=p.total_stock;
+  const teff = tsa>0 ? tsa : ta;
   return {...p, warehouses:whs,
-    total_needed:ta>0?Math.max(0,Math.round(ta*days-ts)):0,
-    total_days:ta>0?+(ts/ta).toFixed(1):null};
+    total_needed:teff>0?Math.max(0,Math.round(teff*days-ts)):0,
+    total_days:teff>0?+(ts/teff).toFixed(1):null};
 }
 function setTargetDays(v) {
   S.targetDays=parseInt(v);
@@ -1332,12 +1381,17 @@ function splitCSVRow(row) {
   res.push(cur.trim()); return res;
 }
 function computeAvg(stocks) {
-  if(stocks.length<3)return 0;
-  const drops=[];
-  for(let i=0;i<stocks.length-1;i++){const d=stocks[i+1]-stocks[i];if(d>0)drops.push(d);}
-  if(drops.length<2)return 0;
-  drops.sort((a,b)=>a-b); const mid=Math.floor(drops.length/2);
-  return +(drops.length%2===1?drops[mid]:(drops[mid-1]+drops[mid])/2).toFixed(1);
+  if(stocks.length<2) return 0;
+  // stocks[0]=mới nhất, stocks[last]=cũ nhất
+  // Logic: ngày tồn GIẢM → ra hàng thực tế; ngày tồn TĂNG → nhập hàng vào (không tính ra hàng)
+  // Thực tế ra hàng TB/ngày = tổng lượng giảm ÷ tổng số ngày theo dõi
+  let totalOut = 0;
+  for(let i=0; i<stocks.length-1; i++){
+    const d = stocks[i+1] - stocks[i]; // cũ hơn - mới hơn: dương = tồn giảm = ra hàng
+    if(d > 0) totalOut += d;
+  }
+  if(totalOut === 0) return 0;
+  return +(totalOut / (stocks.length - 1)).toFixed(1);
 }
 async function syncFromSheet() { await doSync(); }
 
@@ -1407,9 +1461,11 @@ function parseSalesCSV(text, avgOut, histOut, monthlyOut) {
     const cols = splitCSVRow(lines[i]);
     if(cols.length < 3) continue;
 
-    // SKU chỉ lấy từ cột B (cols[1]) — cột B trống thì bỏ qua
-    const sku = (cols[1]||'').trim();
-    if(!sku || sku==='nan' || sku==='SKU' || sku==='Mã SP' || sku==='TỔNG' || sku==='Tổng') continue;
+    // SKU: ưu tiên cột B, fallback cột C — loại dòng không phải mã SP (số thuần, tổng cộng...)
+    const _isValidSku = s => s && s!=='nan' && s!=='SKU' && s!=='Mã SP' && s!=='TỔNG' && s!=='Tổng' && !/^[\d.,\s]+$/.test(s);
+    let sku = (cols[1]||'').trim();
+    if (!_isValidSku(sku)) sku = (cols[2]||'').trim();
+    if (!_isValidSku(sku)) continue;
 
 
     // Parse số Việt Nam: "1.234" → 1234, "41.440.000" → 41440000
@@ -1469,10 +1525,18 @@ function setStatus2(html){ document.getElementById('status-text').innerHTML=html
 // ── FILTERS ──────────────────────────────────────────────────────────────────
 function getWhView(p) {
   // Returns the right stock/avg/days/needed based on selected warehouse
-  if(S.wh==='ALL') return {stock:p.total_stock, avg:p.total_avg, days:p.total_days, needed:p.total_needed};
+  if(S.wh==='ALL') {
+    const tsa = p.total_stock_avg||0;
+    const ta  = p.total_avg||0;
+    const eff = tsa>0 ? tsa : ta; // tốc độ thực tế dùng để tính Ngày còn & Cần nhập
+    return {stock:p.total_stock, avg:ta, stock_avg:tsa, eff_avg:eff, days:p.total_days, needed:p.total_needed};
+  }
   const w = p.warehouses[S.wh];
   if(!w) return null;
-  return {stock:w.stock, avg:w.avg, days:w.days_left, needed:w.needed};
+  const wsa = w.stock_avg||0;
+  const wa  = w.avg||0;
+  const weff= wsa>0 ? wsa : wa;
+  return {stock:w.stock, avg:wa, stock_avg:wsa, eff_avg:weff, days:w.days_left, needed:w.needed};
 }
 function getFiltered(){
   let d=S.data;
@@ -1599,7 +1663,7 @@ function renderTable(){
     tb.innerHTML=rows.map(p=>{
       const sel=S.selectedSku===p.sku?'selected':'';
       const v=getWhView(p);
-      const dot=v.needed>0?(v.days!==null&&v.days<15?'dot-red':'dot-amber'):(v.avg===0?'dot-gray':'dot-green');
+      const dot=v.needed>0?(v.days!==null&&v.days<15?'dot-red':'dot-amber'):(v.eff_avg>0?'dot-green':'dot-gray');
       const needTd=v.needed>0?`<td class="need-cell">+${v.needed.toLocaleString('vi')}</td>`:`<td class="need-ok">Đủ hàng</td>`;
       const whCol=S.wh==='ALL'?whBadges(p):`<span style="display:inline-flex;flex-direction:column;align-items:center;font-size:11px;color:#555;font-weight:600;line-height:1.3">${S.wh}<span style="font-size:9px;font-weight:400;color:#aaa">${(p.warehouses[S.wh]?.stock??0).toLocaleString('vi')}</span></span>`;
       return `<tr class="${sel}" onclick="selectProduct('${p.sku}')">
@@ -1607,13 +1671,21 @@ function renderTable(){
         <td class="name-cell" title="${p.name}">${p.name}${catBadge(p.cat)}</td>
         <td>${whCol}</td>
         <td class="num-cell">${(()=>{
-          if(!v.avg) return '<span style="color:#bbb">—</span>';
-          const src = p.avg_source==='sales'
-            ? '<span title="Từ báo cáo doanh số" style="font-size:9px;color:#16a34a;margin-left:3px">●</span>'
-            : p.avg_source==='stock_total'
-            ? '<span title="🎁 Biến động tổng tồn (triệt tiêu điều chuyển)" style="font-size:9px;color:#f59e0b;margin-left:3px">◆</span>'
-            : '<span title="Từ biến động tồn kho" style="font-size:9px;color:#9ca3af;margin-left:3px">○</span>';
-          return v.avg + src;
+          // Hiển thị tốc độ thực tế ra hàng (stock_avg ưu tiên, fallback doanh số)
+          const dispRate = v.eff_avg || 0;
+          if(!dispRate) return '<span style="color:#bbb">—</span>';
+          // Chỉ báo nguồn
+          let src;
+          if(v.stock_avg > 0) {
+            src = '<span title="Thực tế ra hàng tại kho" style="font-size:9px;color:#0369a1;margin-left:3px">▼</span>';
+          } else if(p.avg_source==='sales') {
+            src = '<span title="Từ báo cáo doanh số" style="font-size:9px;color:#16a34a;margin-left:3px">●</span>';
+          } else if(p.avg_source==='stock_total') {
+            src = '<span title="🎁 Biến động tổng tồn (triệt tiêu điều chuyển)" style="font-size:9px;color:#f59e0b;margin-left:3px">◆</span>';
+          } else {
+            src = '<span title="Từ biến động tồn kho" style="font-size:9px;color:#9ca3af;margin-left:3px">○</span>';
+          }
+          return dispRate + src;
         })()}</td>
         <td class="num-cell">${v.stock.toLocaleString('vi')}</td>
         <td class="num-cell">${daysHtml(v.days,S.targetDays)}</td>
@@ -1641,7 +1713,7 @@ function renderAlerts(){
       <div class="alert-info"><div class="alert-name">${p.name}</div><div class="alert-sub">${p.sku} · còn ${p.total_days} ngày</div></div>
       <span class="alert-qty aq-red">+${(getWhView(p)?.needed??0).toLocaleString('vi')}</span></div>`).join('')}
     ${!urgent.length?'<div style="padding:14px;color:#bbb;font-size:12px;text-align:center">Không có cảnh báo 🎉</div>':''}</div>`;
-  const nosale=S.data.filter(p=>{const v=getWhView(p);return v&&v.avg===0&&v.stock>0;}).sort((a,b)=>{const va=getWhView(a),vb=getWhView(b);return (vb?.stock??0)-(va?.stock??0);});
+  const nosale=S.data.filter(p=>{const v=getWhView(p);return v&&(v.eff_avg||0)===0&&v.stock>0;}).sort((a,b)=>{const va=getWhView(a),vb=getWhView(b);return (vb?.stock??0)-(va?.stock??0);});
   document.getElementById('surplus-panel').innerHTML=`
     <div class="panel-head"><span class="panel-title">⚠ Tồn dư không bán</span><span class="pbadge pbadge-amber">${nosale.length}</span></div>
     <div class="alert-list">${nosale.slice(0,8).map(p=>`<div class="alert-item" onclick="selectProduct('${p.sku}')">
@@ -1822,19 +1894,20 @@ function getSurplusData() {
 
   for(const p of d) {
     const v = getWh(p); if(!v) continue;
-    if(v.avg > 0 && v.days !== null && v.days > TARGET) {
-      const excess = Math.round(v.stock - v.avg * TARGET);
-      const excess_days = Math.round(v.days - TARGET);
-      const _days_actual = v.stock_avg > 0 ? Math.round(v.stock / v.stock_avg) : null;
-      const _excess_actual = v.stock_avg > 0 ? Math.max(0, Math.round(v.stock - v.stock_avg * TARGET)) : excess;
-      const _excess_days_actual = _days_actual !== null ? Math.max(0, _days_actual - TARGET) : excess_days;
-      const _days_show = _days_actual !== null ? _days_actual : Math.round(v.days);
-      const _excess_days_show = v.stock_avg > 0 ? _excess_days_actual : excess_days;
+    // Ngày còn & phân loại:
+    // ƯU TIÊN thực tế ra hàng tại kho (stock_avg) — phản ánh đúng tốc độ hàng thực ra khỏi kho
+    // Fallback: dùng doanh số CSV (v.avg) khi không có biến động kho
+    const effectiveAvg = v.stock_avg > 0 ? v.stock_avg : (v.avg > 0 ? v.avg : 0);
+    const effectiveDays = effectiveAvg > 0 ? +(v.stock / effectiveAvg).toFixed(1) : null;
+
+    if(effectiveAvg > 0 && effectiveDays !== null && effectiveDays > TARGET) {
+      const _dispAvg = v.avg > 0 ? v.avg : v.stock_avg; // Bán TB/ngày từ doanh số CSV
+      const excess = Math.round(v.stock - effectiveAvg * TARGET);
+      const excess_days = Math.round(effectiveDays - TARGET);
       const _cost = getCost(p.sku);
-      const _excess_qty_show = v.stock_avg > 0 ? _excess_actual : excess;
-      const _excess_value = _cost > 0 ? _excess_qty_show * _cost : 0;
-      group1.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _days_actual, _days_show, _excess_actual, _excess_days_actual, _excess_days_show, _whs:v.whs, excess, excess_days, _excess_value});
-    } else if(v.avg === 0 && v.stock > 0) {
+      const _excess_value = _cost > 0 ? Math.max(0, excess) * _cost : 0;
+      group1.push({...p, _stock:v.stock, _avg:_dispAvg, _stock_avg:v.stock_avg, _days:effectiveDays, _whs:v.whs, excess, excess_days, _excess_value});
+    } else if(effectiveAvg === 0 && v.stock > 0) {
       const _cost = getCost(p.sku);
       const _stock_value = _cost > 0 ? v.stock * _cost : 0;
       group2.push({...p, _stock:v.stock, _avg:v.avg, _stock_avg:v.stock_avg, _days:v.days, _whs:v.whs, _stock_value});
@@ -1904,6 +1977,69 @@ function renderSurplus() {
     (totalNoSaleValue > 0 ? _mkCard('', '', '<span style="color:#dc2626">⚫ Giá trị không DS</span>',
       `<span style="color:#dc2626">${fmtVND(totalNoSaleValue)}</span>`, `${group2.length} SKU không có doanh số`, 'border-left:3px solid #dc2626') : '');
 
+  // ── Đọc snapshot tháng trước để so sánh ──
+  const _snapNow = new Date();
+  const _prevMo = _snapNow.getMonth() === 0 ? 12 : _snapNow.getMonth();
+  const _prevYr = _snapNow.getMonth() === 0 ? _snapNow.getFullYear()-1 : _snapNow.getFullYear();
+  const _prevSnapKey = `${_prevYr}-${String(_prevMo).padStart(2,'0')}`;
+  const _allSnaps = JSON.parse(localStorage.getItem(SNAPSHOT_KEY)||'{}');
+  const _prevSnap = _allSnaps[_prevSnapKey]?.surplusData || null;
+  const _prevLabel = _allSnaps[_prevSnapKey]?.label || `T${String(_prevMo).padStart(2,'0')}/${_prevYr}`;
+
+  // Helper: hiển thị delta so với tháng trước
+  const _delta = (cur, prev, invert=false) => {
+    if (prev == null || prev === 0) return '';
+    const diff = cur - prev;
+    if (diff === 0) return '<span style="color:#888;font-size:10px"> = tháng trước</span>';
+    // invert=true: tăng là tốt (màu xanh), giảm là xấu (màu đỏ)
+    // invert=false: tăng là xấu (màu đỏ), giảm là tốt (màu xanh)
+    const isGood = invert ? diff > 0 : diff < 0;
+    const color = isGood ? '#16a34a' : '#dc2626';
+    const arrow = diff > 0 ? '▲' : '▼';
+    const pct = Math.abs(Math.round(diff/prev*100));
+    return `<span style="color:${color};font-size:10px;font-weight:700"> ${arrow}${Math.abs(diff).toLocaleString('vi')} (${pct}% so ${_prevLabel})</span>`;
+  };
+  const _deltaVal = (cur, prev, invert=false) => {
+    if (prev == null || prev === 0) return '';
+    const diff = cur - prev;
+    if (diff === 0) return '<span style="color:#888;font-size:10px"> = tháng trước</span>';
+    const isGood = invert ? diff > 0 : diff < 0;
+    const color = isGood ? '#16a34a' : '#dc2626';
+    const arrow = diff > 0 ? '▲' : '▼';
+    const pct = Math.abs(Math.round(diff/prev*100));
+    return `<span style="color:${color};font-size:10px;font-weight:700"> ${arrow}${fmtVND(Math.abs(diff))} (${pct}%)</span>`;
+  };
+
+  // ── Thanh tổng kết Tab 1 ──
+  const totalExcessQty = group1.reduce((a,p) => a + (p._stock_avg > 0 ? p._excess_actual : p.excess), 0);
+  const totalExcessVal = group1.reduce((a,p) => a + (p._excess_value||0), 0);
+  const totalStock1    = group1.reduce((a,p) => a + p._stock, 0);
+  const s1sum = document.getElementById('surplus-summary-1');
+  if (s1sum) s1sum.innerHTML = group1.length === 0 ? '' : `
+    <span style="color:#666">Tổng <b>${group1.length}</b> SKU${_prevSnap ? _delta(group1.length, _prevSnap.excess_count) : ''}:</span>
+    <span style="background:#fef3c7;color:#92400e;border-radius:6px;padding:3px 10px;font-weight:700">
+      📦 Tổng tồn: <b>${totalStock1.toLocaleString('vi')}</b> sp
+    </span>
+    <span style="background:#fef9c3;color:#854d0e;border-radius:6px;padding:3px 10px;font-weight:700">
+      ⚠️ SL dư: <b>${totalExcessQty.toLocaleString('vi')}</b> sp${_prevSnap ? _delta(totalExcessQty, _prevSnap.excess_qty) : ''}
+    </span>
+    ${totalExcessVal > 0 ? `<span style="background:#fff7ed;color:#c2410c;border-radius:6px;padding:3px 10px;font-weight:700">
+      💰 Giá trị dư: <b>${fmtVND(totalExcessVal)}</b>${_prevSnap ? _deltaVal(totalExcessVal, _prevSnap.excess_value) : ''}
+    </span>` : '<span style="color:#bbb;font-size:11px">Chưa nhập giá vốn</span>'}`;
+
+  // ── Thanh tổng kết Tab 2 ──
+  const totalStock2    = group2.reduce((a,p) => a + p._stock, 0);
+  const totalNoSaleVal2 = group2.reduce((a,p) => a + (p._stock_value||0), 0);
+  const s2sum = document.getElementById('surplus-summary-2');
+  if (s2sum) s2sum.innerHTML = group2.length === 0 ? '' : `
+    <span style="color:#666">Tổng <b>${group2.length}</b> SKU${_prevSnap ? _delta(group2.length, _prevSnap.nosales_count) : ''}:</span>
+    <span style="background:#fee2e2;color:#991b1b;border-radius:6px;padding:3px 10px;font-weight:700">
+      📦 Tổng tồn: <b>${totalStock2.toLocaleString('vi')}</b> sp${_prevSnap ? _delta(totalStock2, _prevSnap.nosales_qty) : ''}
+    </span>
+    ${totalNoSaleVal2 > 0 ? `<span style="background:#fef2f2;color:#dc2626;border-radius:6px;padding:3px 10px;font-weight:700">
+      💰 Giá trị tồn: <b>${fmtVND(totalNoSaleVal2)}</b>${_prevSnap ? _deltaVal(totalNoSaleVal2, _prevSnap.nosales_value) : ''}
+    </span>` : '<span style="color:#bbb;font-size:11px">Chưa nhập giá vốn</span>'}`;
+
   // Group 1
   document.getElementById('s1-count').textContent = group1.length;
   const daysChip = (d) => {
@@ -1919,28 +2055,57 @@ function renderSurplus() {
       <td style="text-align:center;font-family:monospace">${p._avg}</td>
       <td style="text-align:center;font-family:monospace;color:#0369a1;font-weight:600">${p._stock_avg > 0 ? p._stock_avg : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
       <td style="text-align:center;font-family:monospace">${p._stock.toLocaleString('vi')}</td>
-      <td style="text-align:center">${p._days_actual !== null ? daysChip(p._days_actual) : daysChip(Math.round(p._days))}</td>
-      <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">+${(p._stock_avg > 0 ? p._excess_actual : p.excess).toLocaleString('vi')}</td>
+      <td style="text-align:center">${daysChip(Math.round(p._days))}</td>
+      <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">+${Math.max(0,p.excess).toLocaleString('vi')}</td>
       <td style="text-align:right;font-family:monospace;font-weight:700;color:#d97706">${p._excess_value > 0 ? fmtVND(p._excess_value) : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
-      <td style="text-align:right">${daysChip(p._stock_avg > 0 ? p._excess_days_actual : p.excess_days)}</td>
       <td class="note-cell" onclick="event.stopPropagation()">${getNoteBtn(p.sku,p.name)}</td>
     </tr>`).join('') :
-    '<tr><td colspan="11" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm tồn dư 🎉</td></tr>';
+    '<tr><td colspan="10" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm tồn dư 🎉</td></tr>';
 
   // Group 2
   document.getElementById('s2-count').textContent = group2.length;
-  document.getElementById('surplus-tbody-2').innerHTML = group2.length ? group2.map(p=>`
+  document.getElementById('surplus-tbody-2').innerHTML = group2.length ? group2.map(p=>{
+    const manAvg = getManualAvg(p.sku);
+    const avgCell = manAvg > 0
+      ? `<span style="color:#2563eb;font-weight:700;font-size:11px">${manAvg}/ngày ✏️</span>`
+      : `<span style="color:#bbb;font-size:11px">—</span>`;
+    return `
     <tr onclick="switchTab('forecast');setTimeout(()=>selectProduct('${p.sku}'),100)">
       <td class="surplus-sku">${p.sku}${isKM(p.sku)?'<br><span class="km-badge">🎁 KM</span>':''}<br>${luongBadge(getLuong(p))}</td>
       <td><div class="surplus-name" title="${p.name}">${p.name}${getStatusChip(p.sku)}</div>${catBadge(p.cat)}</td>
       <td>${whMini(p._whs, p.warehouses)}</td>
       <td style="text-align:center;font-family:monospace;font-weight:600">${p._stock.toLocaleString('vi')}</td>
       <td style="text-align:right;font-family:monospace;font-weight:700;color:#dc2626">${p._stock_value > 0 ? fmtVND(p._stock_value) : '<span style="color:#ccc;font-weight:400">—</span>'}</td>
-      <td style="text-align:center"><span class="days-chip days-chip-gray">Không có doanh số</span></td>
-      <td style="text-align:right;font-size:11px;color:#888">Kiểm tra & đẩy bán</td>
+      <td style="text-align:center;cursor:pointer" onclick="event.stopPropagation();openManualAvgDialog('${p.sku}','${p.name.replace(/'/g,'\\\'')}')" title="Nhập avg bán/ngày thủ công">${avgCell}</td>
       <td class="note-cell" onclick="event.stopPropagation()">${getNoteBtn(p.sku,p.name)}</td>
-    </tr>`).join('') :
-    '<tr><td colspan="8" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm đứng tồn 🎉</td></tr>';
+    </tr>`;}).join('') :
+    '<tr><td colspan="7" style="text-align:center;padding:24px;color:#bbb">Không có sản phẩm đứng tồn 🎉</td></tr>';
+}
+
+// ── MANUAL AVG OVERRIDE ───────────────────────────────────────────────────────
+function getManualAvg(sku) {
+  try { const m=JSON.parse(localStorage.getItem('anan_manual_avg')||'{}'); return +(m[sku]||m[sku?.toUpperCase()]||0); } catch(e){ return 0; }
+}
+function setManualAvg(sku, val) {
+  try {
+    const m=JSON.parse(localStorage.getItem('anan_manual_avg')||'{}');
+    if(val>0) m[sku]=val; else delete m[sku];
+    localStorage.setItem('anan_manual_avg', JSON.stringify(m));
+  } catch(e){}
+}
+function openManualAvgDialog(sku, name) {
+  const cur = getManualAvg(sku);
+  const val = prompt(`Nhập bán trung bình/ngày cho ${sku} — ${name}\n(để trống hoặc 0 để xóa override)`, cur||'');
+  if(val===null) return;
+  const n = parseFloat(val)||0;
+  setManualAvg(sku, n);
+  // Cập nhật lại data ngay
+  S.data = S.data.map(p => p.sku===sku ? mergeSalesAvg(p) : p);
+  S.data = S.data.map(p => p.sku===sku ? {...p,
+    total_avg: +Object.values(p.warehouses).reduce((a,w)=>a+w.avg,0).toFixed(1),
+    total_stock_avg: +Object.values(p.warehouses).reduce((a,w)=>a+(w.stock_avg||0),0).toFixed(1),
+  } : p);
+  renderAll();
 }
 
 // ── NOTES (localStorage) ─────────────────────────────────────────────────────
@@ -2211,9 +2376,9 @@ function getForecastNoteBtn(sku, name) {
 function exportSurplusCSV() {
   const {group1, group2} = getSurplusData();
   const _expNotes = loadNotes();
-  const rows = [['Nhóm','SKU','Tên sản phẩm','Phân loại','Kho','Bán TB/ngày','Tồn hiện tại','Ngày còn','Số lượng dư','Dư bao nhiêu ngày','Ghi chú']];
-  group1.forEach(p=>rows.push(['Tồn vượt định mức',p.sku,p.name,p.cat,p._whs.join('+'),p._avg,p._stock,Math.round(p._days),p.excess,p.excess_days,(_expNotes[p.sku]?.text||'').replace(/\n/g,' ')]));
-  group2.forEach(p=>rows.push(['Không có doanh số',p.sku,p.name,p.cat,p._whs.join('+'),0,p._stock,'∞','—','—',(_expNotes[p.sku]?.text||'').replace(/\n/g,' ')]));
+  const rows = [['Nhóm','SKU','Tên sản phẩm','Phân loại','Kho','Bán TB/ngày','Thực tế ra hàng','Tồn hiện tại','Ngày còn','Số lượng dư','Ghi chú']];
+  group1.forEach(p=>rows.push(['Tồn vượt định mức',p.sku,p.name,p.cat,p._whs.join('+'),p._avg,p._stock_avg||0,p._stock,Math.round(p._days),p.excess,(_expNotes[p.sku]?.text||'').replace(/\n/g,' ')]));
+  group2.forEach(p=>rows.push(['Không có doanh số',p.sku,p.name,p.cat,p._whs.join('+'),0,p._stock_avg||0,p._stock,'∞','—',(_expNotes[p.sku]?.text||'').replace(/\n/g,' ')]));
   const csv=rows.map(r=>r.map(v=>`"${v}"`).join(',')).join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
   a.download='ton_du_can_day.csv';a.click();
@@ -2250,7 +2415,7 @@ function onResizeEnd() {
   // Save col widths to localStorage
   const widths = {};
   const allColIds = ['col-sku','col-name','col-wh','col-avg','col-stock','col-days','col-need',
-    's1-col-sku','s1-col-name','s1-col-wh','s1-col-avg','s1-col-stock','s1-col-days','s1-col-excess','s1-col-exdays','s1-col-note',
+    's1-col-sku','s1-col-name','s1-col-wh','s1-col-avg','s1-col-stockavg','s1-col-stock','s1-col-days','s1-col-excess','s1-col-exval','s1-col-note',
     's2-col-sku','s2-col-name','s2-col-wh','s2-col-stock','s2-col-status','s2-col-suggest','s2-col-note'];
   allColIds.forEach(id => {
     const el = document.getElementById(id);
@@ -3662,11 +3827,15 @@ function renderSalesCompare() {
   const maxPerMonth = D.months.map((_,i) => Math.max(...allSkus.map(s=>s.data[i]||0), 1));
   const _lIdx = D.months.length - 1;
   const _lDone = _liveSalesDaysDone;
+  const _now = new Date();
+  const _todayDay = _now.getDate();
+  const _todayMonth = _now.getMonth() + 1;
+  const _todayYear = _now.getFullYear();
   const _lProj = _lDone > 0 && D.totals[_lIdx] > 0 ? Math.round(D.totals[_lIdx]/_lDone*(DAYS_IN_MONTH[_lIdx]||31)) : 0;
 
   tableEl.innerHTML = `
     <div style="font-size:10px;color:#d97706;margin-bottom:8px">
-      * ${D.months[_lIdx]} tính đến ngày ${_lDone}/${_lIdx+1}/2026 · Dự kiến cả tháng: ~${_lProj > 0 ? _lProj.toLocaleString('vi') : '?'} sản phẩm
+      * ${D.months[_lIdx]} tính đến ngày ${_todayDay}/${_todayMonth}/${_todayYear} · Dự kiến cả tháng: ~${_lProj > 0 ? _lProj.toLocaleString('vi') : '?'} sản phẩm
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px">
       <thead style="position:sticky;top:0;z-index:10">
@@ -4466,8 +4635,13 @@ async function doSync() {
         const cols=splitCSVRow(lines[i]);
         const sku=(cols[1]||'').trim(); if(!sku||sku==='TỔNG'||sku==='')continue;
         const name=(cols[2]||'').trim();
-        const stocks=[]; for(let j=5;j<Math.min(cols.length,5+30);j++){const v=parseFloat(cols[j]);if(!isNaN(v))stocks.push(v);} // giới hạn 30 mốc gần nhất (~1 tháng)
-        const avg=computeAvg(stocks), stock=stocks[0]||0;
+        // Sheet: cột TRÁI = ngày MỚI NHẤT (F=hôm nay, G=hôm qua, H=hôm kia...)
+        // Xuất hàng/ngày = cột_trước - cột_sau (G - F = hôm qua - hôm nay, khi dương = ra hàng)
+        const _raw=[]; for(let j=5;j<cols.length;j++){const v=parseFloat(cols[j]);if(!isNaN(v))_raw.push(v);}
+        const stocks=_raw.slice(0,30); // 30 cột đầu = 30 ngày gần nhất (không cần reverse)
+        const stock=_raw[0]||0;       // Tồn hiện tại = cột F = phần tử đầu tiên
+        const avg=computeAvg(stocks);
+
         if(!allP[sku])allP[sku]={sku,name,warehouses:{}};
         allP[sku].warehouses[wh]={stock,avg,stock_avg:avg,history:stocks.slice(0,10),
           days_left:avg>0?+(stock/avg).toFixed(1):null,
@@ -4599,9 +4773,11 @@ async function doSync() {
     }
     const ta=+Object.values(p.warehouses).reduce((a,w)=>a+w.avg,0).toFixed(1);
     const tsa=+Object.values(p.warehouses).reduce((a,w)=>a+(w.stock_avg||0),0).toFixed(1);
+    // Ngày còn: ưu tiên thực tế ra hàng (tsa), fallback doanh số (ta)
+    const teff = tsa>0 ? tsa : ta;
     return {...p,cat:S.catMap[p.sku]||'KHAC',total_stock:ts,total_avg:ta,total_stock_avg:tsa,
-      total_days:ta>0?+(ts/ta).toFixed(1):null,
-      total_needed:ta>0?Math.max(0,Math.round(ta*S.targetDays-ts)):0};
+      total_days:teff>0?+(ts/teff).toFixed(1):null,
+      total_needed:teff>0?Math.max(0,Math.round(teff*S.targetDays-ts)):0};
   });
 
   if(built.length>0){
@@ -4609,6 +4785,34 @@ async function doSync() {
     if(salesLoaded){ Object.assign(SALES_AVG,newSalesAvg); Object.assign(SALES_HIST,newSalesHist); }
     // Lấp đầy SALES_AVG cho 44 SKU từ SALES_COMPARE_DATA (bỏ qua SKU đã có live data)
     initSalesAvgFromStaticData(salesLoaded ? new Set(Object.keys(newSalesAvg)) : null);
+    // Bổ sung SALES_AVG cho các SKU ngoài danh sách 44 (vd VTT0241) từ anan_monthly_sales
+    try {
+      const _msAll = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
+      const _n = new Date();
+      // Lấy 2 tháng gần nhất để tính median rate
+      const _keys = [
+        `${_n.getFullYear()}-${String(_n.getMonth()+1).padStart(2,'0')}`,
+        `${_n.getMonth()===0?_n.getFullYear()-1:_n.getFullYear()}-${String(_n.getMonth()===0?12:_n.getMonth()).padStart(2,'0')}`
+      ];
+      const _skuRates = {};
+      _keys.forEach(k => {
+        const e = _msAll[k];
+        if (!e || !e.skuTotals || !e.daysDone) return;
+        Object.entries(e.skuTotals).forEach(([sku, qty]) => {
+          if (!_skuRates[sku]) _skuRates[sku] = [];
+          if (qty > 0) _skuRates[sku].push(+(qty / e.daysDone).toFixed(1));
+        });
+      });
+      Object.entries(_skuRates).forEach(([sku, rates]) => {
+        // Chỉ bổ sung nếu chưa có (không ghi đè dữ liệu live từ parseSalesCSV hoặc static 44 SKU)
+        if (SALES_AVG[sku] || SALES_AVG[sku.toUpperCase()] || SALES_AVG[sku.toLowerCase()]) return;
+        if (!rates.length) return;
+        const sorted = [...rates].sort((a,b)=>a-b);
+        const mid = Math.floor(sorted.length/2);
+        const median = sorted.length%2===1 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2;
+        SALES_AVG[sku] = Math.round(median * 10) / 10;
+      });
+    } catch(_e) {}
     S.data=built.map(p=>{const m=mergeSalesAvg(p);return {...recompute(m,S.targetDays),cat:S.catMap[p.sku]||p.cat||'KHAC', avg_source:m.avg_source};});
     const t=new Date().toLocaleString('vi-VN');
     const src=useOAuth?'🔐 OAuth':'🌐 Public';
