@@ -810,6 +810,7 @@ table{table-layout:fixed;width:100%}
   <div style="overflow:auto;flex:1;min-height:0">
     <table style="border-collapse:collapse;table-layout:fixed;min-width:1300px;width:100%" id="transfer-table">
       <colgroup>
+        <col style="width:36px">  <!-- Checkbox -->
         <col style="width:80px">  <!-- SKU -->
         <col style="width:160px"> <!-- Tên -->
         <!-- AnAn -->
@@ -826,6 +827,12 @@ table{table-layout:fixed;width:100%}
       <thead style="position:sticky;top:0;z-index:10"></thead>
       <tbody id="transfer-tbody"></tbody>
     </table>
+  </div>
+  <!-- Action bar khi tích chọn -->
+  <div id="tf-action-bar" style="display:none;position:sticky;bottom:0;background:#1e3a5f;color:#fff;padding:10px 20px;border-radius:10px 10px 0 0;box-shadow:0 -4px 16px rgba(0,0,0,.18);align-items:center;gap:12px;flex-wrap:wrap;z-index:50;flex-shrink:0">
+    <span id="tf-sel-summary" style="font-weight:700;font-size:13px;flex:1;min-width:160px"></span>
+    <button id="tf-btn-filter-sel" onclick="tfToggleShowSelected()" style="background:#2563eb;color:#fff;border:none;border-radius:7px;padding:7px 16px;font-size:12px;font-weight:700;cursor:pointer">👁 Chỉ xem đã chọn</button>
+    <button onclick="tfClearSelection()" style="background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.3);border-radius:7px;padding:7px 14px;font-size:12px;cursor:pointer">✕ Bỏ chọn tất cả</button>
   </div>
 </div>
 
@@ -2038,7 +2045,13 @@ function whMini(whs, warehouses) {
 // ── ĐIỀU PHỐI KHO ─────────────────────────────────────────────────────────────
 const WH_LIST_ALL = ['AnAn','SMN','SMT','Upbase SMN'];
 const WH_COLORS_TF = {AnAn:'#2563eb', SMN:'#16a34a', SMT:'#d97706', 'Upbase SMN':'#7c3aed'};
-let TF = { filter:'ALL', wh:'ALL', search:'', sortKey:'action', sortDir:1 };
+function _loadTFSelected() {
+  try { return new Set(JSON.parse(localStorage.getItem('tf_selected')||'[]')); } catch(e){ return new Set(); }
+}
+function _saveTFSelected() {
+  try { localStorage.setItem('tf_selected', JSON.stringify([...TF.selected])); } catch(e){}
+}
+let TF = { filter:'ALL', wh:'ALL', search:'', sortKey:'action', sortDir:1, selected: _loadTFSelected(), showSelectedOnly: false };
 
 function setTFFilter(v, el) {
   TF.filter = v;
@@ -2155,6 +2168,17 @@ function renderTransfer() {
   const q = tfSearch || TF.search || '';
   if(q) filtered = filtered.filter(r => r.p.sku.toLowerCase().includes(q) || r.p.name.toLowerCase().includes(q));
 
+  // Lọc chỉ hiện sản phẩm đã chọn
+  if(TF.showSelectedOnly && TF.selected.size > 0) {
+    filtered = filtered.filter(r => TF.selected.has(r.p.sku));
+    // Nếu SKU được chọn không có trong filtered (do các filter khác), thêm từ toàn bộ rows
+    const missingSkus = [...TF.selected].filter(sku => !filtered.find(r => r.p.sku === sku));
+    if(missingSkus.length) {
+      const extras = rows.filter(r => missingSkus.includes(r.p.sku));
+      filtered = [...filtered, ...extras];
+    }
+  }
+
   // Sắp xếp theo cột được chọn (mặc định: action priority → urgentDays)
   const ORDER = {URGENT:0, BUY:1, MOVE:2, OK:3};
   const _wh = TF.wh !== 'ALL' ? TF.wh : null; // kho đang lọc để sort per-wh
@@ -2203,8 +2227,14 @@ function renderTransfer() {
 
   // Render thead động để mũi tên cập nhật sau mỗi lần sort
   const theadEl = document.querySelector('#transfer-table thead');
+  const _allFilteredSkus = filtered.map(r=>r.p.sku);
+  const _allChecked = _allFilteredSkus.length > 0 && _allFilteredSkus.every(s => TF.selected.has(s));
+  const _someChecked = !_allChecked && _allFilteredSkus.some(s => TF.selected.has(s));
   if(theadEl) theadEl.innerHTML = `
     <tr style="background:#f0efeb">
+      <th rowspan="2" style="padding:7px 6px;text-align:center;border-bottom:2px solid #e5e5e0;border-right:1px solid #e5e5e0">
+        <input type="checkbox" id="tf-chk-all" ${_allChecked?'checked':''} style="cursor:pointer;width:15px;height:15px;accent-color:#2563eb" onchange="toggleTFSelectAll(this.checked,${JSON.stringify(_allFilteredSkus)})" title="Chọn tất cả">
+      </th>
       <th onclick="sortTF('sku')" style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;border-bottom:2px solid #e5e5e0;border-right:1px solid #e5e5e0;cursor:pointer;user-select:none" rowspan="2">SKU ${_si('sku')}</th>
       <th onclick="sortTF('name')" style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;border-bottom:2px solid #e5e5e0;border-right:2px solid #e5e5e0;cursor:pointer;user-select:none" rowspan="2">Tên sản phẩm ${_si('name')}</th>
       ${WH_LIST_ALL.map(wh=>`<th colspan="4" style="padding:6px 8px;text-align:center;font-size:11px;font-weight:700;color:${WH_COL[wh]};border-bottom:1px solid ${WH_SUB_BDR[wh]};border-right:2px solid #e5e5e0;background:${WH_BG[wh]}">🏬 ${WH_SHORT[wh]||wh}</th>`).join('')}
@@ -2272,7 +2302,13 @@ function renderTransfer() {
       if(s.type==='BUY') return `<div style="font-size:11px;margin-bottom:2px;color:${row.action==='URGENT'?'#dc2626':'#d97706'}">${row.action==='URGENT'?'🔴':'🛒'} Nhập thêm: <b>${s.qty.toLocaleString('vi')} sp</b></div>`;
     }).join('') || '<span style="color:#16a34a;font-size:11px">✅ Đủ hàng</span>';
     const nameSafe = p.name.replace(/'/g,"\\'");
-    return `<tr style="border-bottom:1px solid #f0efeb;${rowBorder}">
+    const isSelected = TF.selected.has(p.sku);
+    const rowBg = isSelected ? 'background:#eff6ff;' : '';
+    return `<tr style="border-bottom:1px solid #f0efeb;${rowBorder}${rowBg}">
+      <td style="padding:0 6px;text-align:center;border-right:1px solid #e5e5e0;vertical-align:middle">
+        <input type="checkbox" ${isSelected?'checked':''} style="cursor:pointer;width:15px;height:15px;accent-color:#2563eb"
+          onchange="toggleTFSelect('${p.sku}',this.checked)" onclick="event.stopPropagation()">
+      </td>
       <td style="padding:8px 8px;font-family:monospace;font-size:11px;color:#888;white-space:nowrap;border-right:1px solid #f0efeb">${p.sku}</td>
       <td style="padding:8px 8px;font-size:12px;font-weight:500;border-right:2px solid #e5e5e0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.name}">${p.name}</div></td>
       ${WH_LIST_ALL.map(wh => whCols4(row.whs[wh], wh)).join('')}
@@ -2280,6 +2316,153 @@ function renderTransfer() {
       <td style="padding:6px 8px;vertical-align:middle">${getTransferNoteBtn(p.sku, nameSafe)}</td>
     </tr>`;
   }).join('');
+
+  // Lưu filtered rows vào TF để export có thể dùng
+  TF._filteredRows = filtered;
+  renderTFActionBar();
+}
+
+function toggleTFSelect(sku, checked) {
+  if(checked) TF.selected.add(sku);
+  else TF.selected.delete(sku);
+  _saveTFSelected();
+  renderTFActionBar();
+  // Cập nhật màu row mà không render lại toàn bộ
+  const rows = document.querySelectorAll('#transfer-tbody tr');
+  rows.forEach(tr => {
+    const chk = tr.querySelector('input[type=checkbox]');
+    if(chk) {
+      const rowSku = tr.querySelector('td:nth-child(2)')?.textContent?.trim();
+      if(rowSku && TF.selected.has(rowSku)) tr.style.background = '#eff6ff';
+      else tr.style.background = '';
+    }
+  });
+  // Cập nhật checkbox "chọn tất cả"
+  const allChk = document.getElementById('tf-chk-all');
+  if(allChk) {
+    const allSkus = TF._filteredRows?.map(r=>r.p.sku) || [];
+    allChk.checked = allSkus.length > 0 && allSkus.every(s => TF.selected.has(s));
+    allChk.indeterminate = !allChk.checked && allSkus.some(s => TF.selected.has(s));
+  }
+}
+
+function toggleTFSelectAll(checked, skus) {
+  skus.forEach(sku => checked ? TF.selected.add(sku) : TF.selected.delete(sku));
+  _saveTFSelected();
+  renderTransfer();
+}
+
+function tfClearSelection() {
+  TF.selected.clear();
+  _saveTFSelected();
+  renderTransfer();
+}
+
+function renderTFActionBar() {
+  const bar = document.getElementById('tf-action-bar');
+  if(!bar) return;
+  const selCount = TF.selected.size;
+  if(selCount === 0) {
+    bar.style.display = 'none';
+    // Tắt chế độ xem đã chọn khi bỏ chọn hết
+    if(TF.showSelectedOnly) { TF.showSelectedOnly = false; renderTransfer(); }
+    return;
+  }
+
+  const selRows = (TF._filteredRows || []).filter(r => TF.selected.has(r.p.sku));
+  const totalNeedSel = selRows.reduce((a,r) => a + (r.totalNeed||0), 0);
+  const urgentSel = selRows.filter(r => r.action === 'URGENT').length;
+
+  let summary = `<b>${selCount} SKU đã chọn</b>`;
+  if(totalNeedSel > 0) summary += ` &nbsp;·&nbsp; Cần nhập: <b style="color:#fbbf24">${totalNeedSel.toLocaleString('vi')} sp</b>`;
+  if(urgentSel > 0) summary += ` &nbsp;·&nbsp; <span style="color:#f87171">🔴 ${urgentSel} khẩn</span>`;
+
+  const selSummaryEl = document.getElementById('tf-sel-summary');
+  if(selSummaryEl) selSummaryEl.innerHTML = summary;
+
+  const filterBtn = document.getElementById('tf-btn-filter-sel');
+  if(filterBtn) {
+    if(TF.showSelectedOnly) {
+      filterBtn.textContent = '← Xem tất cả';
+      filterBtn.style.background = '#f59e0b';
+    } else {
+      filterBtn.textContent = '👁 Chỉ xem đã chọn';
+      filterBtn.style.background = '#2563eb';
+    }
+  }
+  bar.style.display = 'flex';
+}
+
+function tfToggleShowSelected() {
+  TF.showSelectedOnly = !TF.showSelectedOnly;
+  renderTransfer();
+}
+
+function tfGetSelectedRows() {
+  // Lấy dữ liệu đầy đủ của các SKU được chọn từ _filteredRows hoặc tính lại
+  const TARGET = S.targetDays;
+  return [...TF.selected].map(sku => {
+    const cached = (TF._filteredRows||[]).find(r => r.p.sku === sku);
+    if(cached) return cached;
+    // Fallback: tính lại từ S.data
+    const p = S.data?.find(d => d.sku === sku);
+    if(!p) return null;
+    const whs = {};
+    let totalNeed = 0, totalStock = 0;
+    WH_LIST_ALL.forEach(wh => {
+      const w = p.warehouses[wh];
+      if(!w) { whs[wh] = null; return; }
+      const stock_eff = w.stock > 0 ? (w.stock_avg||0) : 0;
+      const eff = stock_eff > 0 ? stock_eff : (w.stock > 0 ? (w.avg||0) : 0);
+      const need = eff > 0 ? Math.max(0, Math.round(eff * TARGET - w.stock)) : 0;
+      whs[wh] = { stock: w.stock, eff, need };
+      totalNeed += need; totalStock += w.stock;
+    });
+    return { p, whs, totalNeed, totalStock, action: totalNeed > 0 ? 'BUY' : 'OK' };
+  }).filter(Boolean);
+}
+
+function tfExportSelected() {
+  const selRows = tfGetSelectedRows();
+  if(!selRows.length) return;
+  const WH_SHORT = {AnAn:'AnAn', SMN:'SMN', SMT:'SMT', 'Upbase SMN':'UPB'};
+  const lines = ['📋 DANH SÁCH CẦN NHẬP HÀNG', `Ngày: ${new Date().toLocaleDateString('vi-VN')}`, ''];
+  selRows.forEach((r,i) => {
+    const needParts = WH_LIST_ALL
+      .filter(wh => r.whs[wh]?.need > 0)
+      .map(wh => `${WH_SHORT[wh]}: ${r.whs[wh].need.toLocaleString('vi')} sp`);
+    const totalNeed = WH_LIST_ALL.reduce((a,wh) => a + (r.whs[wh]?.need||0), 0);
+    lines.push(`${i+1}. [${r.p.sku}] ${r.p.name}`);
+    if(needParts.length) lines.push(`   Cần nhập: ${needParts.join(' | ')} (Tổng: ${totalNeed.toLocaleString('vi')} sp)`);
+    else lines.push(`   → Đủ hàng / Điều chuyển nội bộ`);
+  });
+  lines.push('');
+  lines.push(`Tổng: ${selRows.length} SKU — ${selRows.reduce((a,r)=>a+WH_LIST_ALL.reduce((b,wh)=>b+(r.whs[wh]?.need||0),0),0).toLocaleString('vi')} sp cần nhập`);
+  navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    const btn = document.querySelector('#tf-action-bar button');
+    if(btn) { const old=btn.textContent; btn.textContent='✓ Đã sao chép!'; setTimeout(()=>btn.textContent=old,2000); }
+  }).catch(() => alert(lines.join('\n')));
+}
+
+function tfExportCSV() {
+  const selRows = tfGetSelectedRows();
+  if(!selRows.length) return;
+  const WH_SHORT = {AnAn:'AnAn', SMN:'SMN', SMT:'SMT', 'Upbase SMN':'UPB'};
+  const header = ['SKU','Tên sản phẩm','Tồn tổng','Cần nhập tổng','Trạng thái',
+    ...WH_LIST_ALL.flatMap(wh => [`${WH_SHORT[wh]} Tồn`, `${WH_SHORT[wh]} Cần nhập`]),
+    'Ghi chú điều phối'];
+  const tfNotes = loadTransferNotes();
+  const csvRows = selRows.map(r => {
+    const totalNeed = WH_LIST_ALL.reduce((a,wh)=>a+(r.whs[wh]?.need||0),0);
+    const whCols = WH_LIST_ALL.flatMap(wh => [r.whs[wh]?.stock||0, r.whs[wh]?.need||0]);
+    return [r.p.sku, r.p.name, WH_LIST_ALL.reduce((a,wh)=>a+(r.whs[wh]?.stock||0),0),
+      totalNeed, r.action, ...whCols, tfNotes[r.p.sku]?.text||''];
+  });
+  const csv = [header, ...csvRows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'}));
+  a.download = `can_nhap_hang_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
 }
 
 function renderSurplus() {
