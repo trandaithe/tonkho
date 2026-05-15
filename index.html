@@ -546,6 +546,7 @@ table{table-layout:fixed;width:100%}
   <button class="tab-btn" id="tab-transfer" onclick="switchTab('transfer')">🚚 Điều phối kho</button>
   <button class="tab-btn" id="tab-watch" onclick="switchTab('watch')">📌 Theo dõi <span id="watch-tab-badge" style="display:none;background:#ef4444;color:#fff;border-radius:99px;font-size:10px;padding:1px 6px;margin-left:3px;font-weight:700"></span></button>
 </div>
+<div id="top-kpi-bar" style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;padding:10px 20px;background:#f8f8f6;border-bottom:1px solid #e5e5e0;flex-shrink:0"></div>
 <div class="kpi-row" id="kpi-row"></div>
 <div id="filter-bar">
   <div class="toolbar">
@@ -1470,16 +1471,30 @@ function init() {
       `${_n.getMonth()===0?_n.getFullYear()-1:_n.getFullYear()}-${String(_n.getMonth()===0?12:_n.getMonth()).padStart(2,'0')}`
     ];
     const _skuRates = {};
+    const _curMonthKey2 = _keys[0]; // tháng hiện tại luôn là phần tử đầu
+    const _curDay2 = _n.getDate();
     _keys.forEach(k => {
       const e = _msAll[k];
       if (!e || !e.skuTotals || !e.daysDone) return;
+      // Sửa bug daysDone=1: cache cũ có thể lưu daysDone=1 không chính xác
+      // Tháng hiện tại: dùng max(daysDone, ngày hôm nay) để tránh inflate
+      // Tháng trước: dùng max(daysDone, 28) — tháng nào cũng có ít nhất 28 ngày
+      const rawDays = e.daysDone || 1;
+      const safeDays = k === _curMonthKey2
+        ? Math.max(rawDays, _curDay2)
+        : Math.max(rawDays, 28);
       Object.entries(e.skuTotals).forEach(([sku, qty]) => {
         if (!_skuRates[sku]) _skuRates[sku] = [];
-        if (qty > 0) _skuRates[sku].push(+(qty / e.daysDone).toFixed(1));
+        if (qty > 0) _skuRates[sku].push(+(qty / safeDays).toFixed(1));
       });
     });
+    // Tập SKU tĩnh (44 SKU cứng) — không ghi đè vì initSalesAvgFromStaticData đã tính chính xác
+    const _staticSkus = new Set(
+      (SALES_COMPARE_DATA?.skus || []).flatMap(s => [s.sku, (s.sku||'').toUpperCase(), (s.sku||'').toLowerCase()])
+    );
     Object.entries(_skuRates).forEach(([sku, rates]) => {
-      if (SALES_AVG[sku] || SALES_AVG[sku.toUpperCase()] || SALES_AVG[sku.toLowerCase()]) return;
+      // Chỉ bảo vệ 44 SKU static; ghi đè mọi giá trị khác (kể cả cache cũ bị lỗi)
+      if (_staticSkus.has(sku) || _staticSkus.has(sku.toUpperCase()) || _staticSkus.has(sku.toLowerCase())) return;
       if (!rates.length) return;
       const sorted = [...rates].sort((a,b)=>a-b);
       const mid = Math.floor(sorted.length/2);
@@ -1560,16 +1575,23 @@ function mergeSalesAvg(p) {
     try {
       const _ms2 = JSON.parse(localStorage.getItem('anan_monthly_sales') || '{}');
       const _n2 = new Date();
-      const _mk = [
-        `${_n2.getFullYear()}-${String(_n2.getMonth()+1).padStart(2,'0')}`,
-        `${_n2.getMonth()===0?_n2.getFullYear()-1:_n2.getFullYear()}-${String(_n2.getMonth()===0?12:_n2.getMonth()).padStart(2,'0')}`
-      ];
+      const _curMonthKey = `${_n2.getFullYear()}-${String(_n2.getMonth()+1).padStart(2,'0')}`;
+      const _prevMonthKey = `${_n2.getMonth()===0?_n2.getFullYear()-1:_n2.getFullYear()}-${String(_n2.getMonth()===0?12:_n2.getMonth()).padStart(2,'0')}`;
+      const _mk = [_curMonthKey, _prevMonthKey];
+      const _curDay = _n2.getDate(); // ngày hiện tại trong tháng (1-31)
       const _rates = [];
       _mk.forEach(k => {
         const e = _ms2[k];
-        if (!e || !e.skuTotals || !e.daysDone) return;
+        if (!e || !e.skuTotals) return;
+        // Sửa daysDone: cache cũ có thể lưu daysDone=1 (bug chia 1 cũ)
+        // Với tháng hiện tại: dùng tối đa(daysDone, ngày hôm nay) để tránh inflate
+        // Với tháng trước: dùng tối đa(daysDone, 28) — tháng trước phải có ít nhất 28 ngày
+        const rawDays = e.daysDone || 1;
+        const safeDays = k === _curMonthKey
+          ? Math.max(rawDays, _curDay)
+          : Math.max(rawDays, 28);
         const qty = e.skuTotals[p.sku] || e.skuTotals[p.sku?.toUpperCase()] || e.skuTotals[p.sku?.toLowerCase()] || 0;
-        if (qty > 0) _rates.push(qty / e.daysDone);
+        if (qty > 0) _rates.push(qty / safeDays);
       });
       if (_rates.length > 0) salesAvg = +(_rates.reduce((a,b)=>a+b,0) / _rates.length).toFixed(1);
     } catch(_e2) {}
@@ -1603,12 +1625,13 @@ function recompute(p, days) {
   const whs = {};
   for (const [wh, d] of Object.entries(p.warehouses)) {
     const avg=d.avg, stock=d.stock;
-    // Ưu tiên stock_avg; nếu không có stock_avg thì dùng avg nhưng chỉ khi kho còn tồn kho thực tế
+    // Ưu tiên stock_avg (biến động tồn kho thực tế qua computeAvg)
+    // Fallback sang avg (doanh số CSV) khi chưa có dữ liệu tồn kho
     const eff = (d.stock_avg||0) > 0 ? d.stock_avg : (stock > 0 ? avg : 0);
     whs[wh] = {...d, needed:eff>0?Math.max(0,Math.round(eff*days-stock)):0, days_left:eff>0?+(stock/eff).toFixed(1):null};
   }
   const ta=p.total_avg, tsa=p.total_stock_avg||0, ts=p.total_stock;
-  // Chỉ dùng sales CSV (ta) khi còn tồn kho tổng (ts>0); nếu không có tồn thì không dự báo
+  // Ưu tiên stock_avg (thực tế kho); fallback sang doanh số CSV
   const teff = tsa>0 ? tsa : (ts>0 ? ta : 0);
   return {...p, warehouses:whs,
     total_needed:teff>0?Math.max(0,Math.round(teff*days-ts)):0,
@@ -1630,17 +1653,44 @@ function splitCSVRow(row) {
   res.push(cur.trim()); return res;
 }
 function computeAvg(stocks) {
-  if(stocks.length<2) return 0;
+  if (stocks.length < 2) return 0;
   // stocks[0]=mới nhất, stocks[last]=cũ nhất
-  // Logic: ngày tồn GIẢM → ra hàng thực tế; ngày tồn TĂNG → nhập hàng vào (không tính ra hàng)
-  // Thực tế ra hàng TB/ngày = tổng lượng giảm ÷ tổng số ngày theo dõi
-  let totalOut = 0;
-  for(let i=0; i<stocks.length-1; i++){
-    const d = stocks[i+1] - stocks[i]; // cũ hơn - mới hơn: dương = tồn giảm = ra hàng
-    if(d > 0) totalOut += d;
+  // Biến động dương (stocks[i+1] > stocks[i]) = tồn giảm = ra hàng
+  // Biến động âm = nhập hàng vào → không tính
+
+  const totalDays = stocks.length - 1;
+  const outflows = [];
+  for (let i = 0; i < totalDays; i++) {
+    const d = stocks[i+1] - stocks[i]; // cũ - mới; dương = ra hàng
+    if (d > 0) outflows.push(d);
   }
-  if(totalOut === 0) return 0;
-  return +(totalOut / (stocks.length - 1)).toFixed(1);
+  if (outflows.length === 0) return 0;
+
+  // ── Phát hiện & loại trừ điều chuyển kho ──────────────────────────────────
+  // Nguyên tắc: phải thỏa CẢ HAI điều kiện mới coi là điều chuyển kho:
+  //   1) Số lượng giảm trong ngày ≥ 500 sản phẩm
+  //   2) Số lượng giảm trong ngày ≥ 5× ngày bình thường (trung vị THẤP của outflow)
+  // → loại ngày đó khỏi tử số nhưng GIỮ trong mẫu số (vẫn là ngày thực, chỉ không bán)
+  let normalOutflows = outflows;
+
+  // Trường hợp chỉ có 1 ngày outflow ≥ 500 → rất có thể là điều chuyển → bỏ qua
+  if (outflows.length === 1 && outflows[0] >= 500) {
+    normalOutflows = [];
+  } else if (outflows.length >= 2) {
+    const sorted = [...outflows].sort((a,b) => a-b);
+    // QUAN TRỌNG: dùng lower median (index floor((n-1)/2)) thay vì upper median (floor(n/2))
+    // Ví dụ 2 phần tử [5, 90000]: lower median = sorted[0] = 5 (đúng), upper = sorted[1] = 90000 (sai)
+    const median   = sorted[Math.floor((sorted.length - 1) / 2)];
+    const fence    = Math.max(median > 0 ? median * 5 : Infinity, 500);
+    const filtered = outflows.filter(d => d <= fence);
+    // Chỉ áp dụng nếu lọc ra ít nhất 1 giá trị bất thường nhưng vẫn còn dữ liệu bình thường
+    if (filtered.length > 0 && filtered.length < outflows.length) {
+      normalOutflows = filtered;
+    }
+  }
+
+  const totalOut = normalOutflows.reduce((a,b) => a+b, 0);
+  return +(totalOut / totalDays).toFixed(1);
 }
 async function syncFromSheet() { await doSync(); }
 
@@ -1702,8 +1752,11 @@ function parseSalesCSV(text, avgOut, histOut, monthlyOut) {
     }
   }
 
-  // Ngay cả khi không tìm thấy cột ngày, vẫn đọc cột E cho tổng tháng
-  if(monthlyOut) monthlyOut._daysDone = dayCols.length || 1;
+  // Khi không tìm thấy cột ngày, dùng ngày hiện tại trong tháng làm mẫu số
+  // (tránh chia cho 1 khiến tổng tháng bị hiểu là bán/ngày)
+  const _fallbackDays = new Date().getDate(); // ngày hiện tại (1–31)
+  const _effectiveDayCols = dayCols.length > 0 ? dayCols.length : _fallbackDays;
+  if(monthlyOut) monthlyOut._daysDone = _effectiveDayCols;
 
   // Data rows: bắt đầu từ dòng 4 (index 4) — chỉ đọc dòng có SKU ở cột B
   for(let i=4;i<lines.length;i++) {
@@ -1762,8 +1815,9 @@ function parseSalesCSV(text, avgOut, histOut, monthlyOut) {
       avgOut[sku] = +(sorted.length%2===1 ? sorted[mid] : (sorted[mid-1]+sorted[mid])/2).toFixed(1);
       histOut[sku] = [...dailyQtys].reverse().slice(0,14);
     } else if(effectiveTotal > 0) {
-      const days = dayCols.length || 1;
-      avgOut[sku] = +(effectiveTotal / days).toFixed(1);
+      // Dùng _effectiveDayCols (ngày thực trong tháng, tối thiểu là ngày hiện tại)
+      // thay vì dayCols.length||1 để tránh chia cho 1 làm avg vọt lên
+      avgOut[sku] = +( effectiveTotal / _effectiveDayCols ).toFixed(1);
     }
 
     if(monthlyOut && effectiveTotal > 0) monthlyOut[sku] = Math.round(effectiveTotal);
@@ -1778,7 +1832,7 @@ function getWhView(p) {
     const tsa = p.total_stock_avg||0;
     const ta  = p.total_avg||0;
     const ts  = p.total_stock||0;
-    // Chỉ dùng sales CSV khi có tồn kho thực tế
+    // Ưu tiên stock_avg (thực tế kho); fallback sang doanh số CSV
     const eff = tsa>0 ? tsa : (ts>0 ? ta : 0);
     return {stock:ts, avg:ta, stock_avg:tsa, eff_avg:eff, days:p.total_days, needed:p.total_needed};
   }
@@ -1786,7 +1840,7 @@ function getWhView(p) {
   if(!w) return null;
   const wsa = w.stock_avg||0;
   const wa  = w.avg||0;
-  // Chỉ dùng sales CSV khi kho có tồn kho
+  // Ưu tiên stock_avg (thực tế kho); fallback sang doanh số CSV
   const weff= wsa>0 ? wsa : (w.stock>0 ? wa : 0);
   return {stock:w.stock, avg:wa, stock_avg:wsa, eff_avg:weff, days:w.days_left, needed:w.needed};
 }
@@ -2166,8 +2220,8 @@ function getSurplusData() {
   for(const p of d) {
     const v = getWh(p); if(!v) continue;
     // Ngày còn & phân loại:
-    // ƯU TIÊN thực tế ra hàng tại kho (stock_avg) — phản ánh đúng tốc độ hàng thực ra khỏi kho
-    // Fallback: dùng doanh số CSV (v.avg) khi không có biến động kho
+    // Ưu tiên stock_avg (thực tế ra hàng tại kho, từ computeAvg)
+    // Fallback: dùng avg (doanh số CSV) khi chưa có dữ liệu biến động tồn
     const effectiveAvg = v.stock_avg > 0 ? v.stock_avg : (v.avg > 0 ? v.avg : 0);
     const effectiveDays = effectiveAvg > 0 ? +(v.stock / effectiveAvg).toFixed(1) : null;
 
@@ -2252,7 +2306,7 @@ function sortTF(key) {
 
 function renderTransfer() {
   if(!S.data || !S.data.length) {
-    document.getElementById('transfer-tbody').innerHTML = '<tr><td colspan="21" style="text-align:center;padding:32px;color:#bbb">Chưa có dữ liệu — bấm Sync để tải</td></tr>';
+    document.getElementById('transfer-tbody').innerHTML = '<tr><td colspan="22" style="text-align:center;padding:32px;color:#bbb">Chưa có dữ liệu — bấm Sync để tải</td></tr>';
     return;
   }
 
@@ -2406,13 +2460,45 @@ function renderTransfer() {
   const WH_COL_PFX = {AnAn:'an', SMN:'sm', SMT:'st', 'Upbase SMN':'up'};
   const _rh = (colId) => `<span class="resize-handle" onmousedown="startResize(event,'${colId}','transfer')"></span>`;
 
+  // ── Giá bán (cột D × 1.08 VAT, từ sheet doanh số) ────────────────────────────
+  // Nguồn ưu tiên: _salesSheetData (live) → sales_sheet_cache → 0
+  const _sellPriceMap = {};
+  (function() {
+    let src = _salesSheetData;
+    if (!src) {
+      try {
+        const c = JSON.parse(localStorage.getItem('sales_sheet_cache')||'null');
+        if (c && c.data) src = c.data;
+      } catch(e) {}
+    }
+    if (src) {
+      // Duyệt từ tháng cũ → mới → giá mới nhất ghi đè
+      src.forEach(m => (m.skus||[]).forEach(s => {
+        // Giá trong sheet là pre-VAT → nhân 1.08 để ra giá bán thực tế
+        if ((s.price||0) > 0) _sellPriceMap[s.sku.toUpperCase()] = Math.round(s.price * 1.08);
+      }));
+    }
+  })();
+  const PRICE_THRESHOLD = 150000;
+  // Quy tắc phân bổ kho theo giá bán (đã gồm VAT): true = SP được phép ở kho này
+  //   AnAn, SMT  → nhận tất cả sản phẩm
+  //   Upbase SMN → chỉ nhận SP < 150k  (SP ≥ 150k → dự báo dư)
+  //   SMN        → chỉ nhận SP ≥ 150k  (SP < 150k → dự báo dư)
+  function whPriceOK(wh, price) {
+    if (wh === 'AnAn' || wh === 'SMT') return true;
+    if (wh === 'Upbase SMN') return (price||0) > 0 && (price||0) < PRICE_THRESHOLD;
+    if (wh === 'SMN')        return (price||0) >= PRICE_THRESHOLD;
+    return true;
+  }
+
   if(theadEl) theadEl.innerHTML = `
     <tr style="background:#f0efeb">
       <th rowspan="2" style="padding:7px 6px;text-align:center;border-bottom:2px solid #e5e5e0;border-right:1px solid #e5e5e0">
         <input type="checkbox" id="tf-chk-all" ${_allChecked?'checked':''} style="cursor:pointer;width:15px;height:15px;accent-color:#2563eb" onchange="toggleTFSelectAll(this.checked,${JSON.stringify(_allFilteredSkus)})" title="Chọn tất cả">
       </th>
       <th onclick="sortTF('sku')" style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;border-bottom:2px solid #e5e5e0;border-right:1px solid #e5e5e0;cursor:pointer;user-select:none;position:relative" rowspan="2">SKU ${_si('sku')}${_rh('tf-col-sku')}</th>
-      <th onclick="sortTF('name')" style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;border-bottom:2px solid #e5e5e0;border-right:2px solid #e5e5e0;cursor:pointer;user-select:none;position:relative" rowspan="2">Tên sản phẩm ${_si('name')}${_rh('tf-col-name')}</th>
+      <th onclick="sortTF('name')" style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;border-bottom:2px solid #e5e5e0;border-right:1px solid #e5e5e0;cursor:pointer;user-select:none;position:relative" rowspan="2">Tên sản phẩm ${_si('name')}${_rh('tf-col-name')}</th>
+      <th rowspan="2" style="padding:7px 8px;text-align:right;font-size:10px;font-weight:700;text-transform:uppercase;color:#7c3aed;border-bottom:2px solid #e5e5e0;border-right:2px solid #e5e5e0;white-space:nowrap;position:relative;background:#faf5ff">Giá bán${_rh('tf-col-price')}</th>
       ${WH_LIST_ALL.map(wh=>`<th colspan="4" style="padding:6px 8px;text-align:center;font-size:11px;font-weight:700;color:${WH_COL[wh]};border-bottom:1px solid ${WH_SUB_BDR[wh]};border-right:2px solid #e5e5e0;background:${WH_BG[wh]}">🏬 ${WH_SHORT[wh]||wh}</th>`).join('')}
       <th onclick="sortTF('action')" style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;border-bottom:2px solid #e5e5e0;border-right:1px solid #e5e5e0;cursor:pointer;user-select:none;position:relative" rowspan="2">Đề xuất ${_si('action')}${_rh('tf-col-sugg')}</th>
       <th style="padding:7px 8px;text-align:left;font-size:10px;font-weight:700;text-transform:uppercase;color:#888;border-bottom:2px solid #e5e5e0;position:relative" rowspan="2">Ghi chú${_rh('tf-col-note')}</th>
@@ -2433,7 +2519,7 @@ function renderTransfer() {
     </tr>`;
 
   if(!filtered.length) {
-    document.getElementById('transfer-tbody').innerHTML = '<tr><td colspan="21" style="text-align:center;padding:32px;color:#bbb">Không có sản phẩm nào phù hợp bộ lọc</td></tr>';
+    document.getElementById('transfer-tbody').innerHTML = '<tr><td colspan="22" style="text-align:center;padding:32px;color:#bbb">Không có sản phẩm nào phù hợp bộ lọc</td></tr>';
     return;
   }
 
@@ -2446,8 +2532,21 @@ function renderTransfer() {
   }
 
   // 4 ô con cho mỗi kho: Tồn | Ra hàng | Ngày còn | Cần nhập
-  function whCols4(d, wh) {
+  // isAllowed = false → SP không phù hợp kho này theo giá bán → đánh màu cam "Dự báo dư"
+  function whCols4(d, wh, isAllowed) {
     const borderR = 'border-right:2px solid #e5e5e0';
+    // SP có tồn nhưng KHÔNG phù hợp kho này → đánh màu cam, giữ số liệu, thêm badge "Đẩy"
+    if (isAllowed === false && d && d.stock > 0) {
+      const {bg, txt} = daysBg(d.days);
+      const daysStr = d.days !== null ? Math.round(d.days) : '—';
+      const surpStr = d.surplus > 0
+        ? `<span style="color:#16a34a">−${d.surplus.toLocaleString('vi')}</span> <span style="font-size:9px;background:#fed7aa;color:#c2410c;border-radius:3px;padding:1px 4px;font-weight:700">Đẩy</span>`
+        : `<span style="color:#bbb">—</span> <span style="font-size:9px;background:#fed7aa;color:#c2410c;border-radius:3px;padding:1px 4px;font-weight:700">Đẩy</span>`;
+      return `<td style="text-align:right;font-family:monospace;font-size:11px;padding:7px 6px;background:#fff7ed">${d.stock.toLocaleString('vi')}</td>
+              <td style="text-align:right;font-family:monospace;font-size:11px;padding:7px 6px;background:#fff7ed;color:#0369a1">${d.eff > 0 ? d.eff : '<span style="color:#bbb">—</span>'}</td>
+              <td style="text-align:center;font-family:monospace;font-size:12px;font-weight:700;padding:7px 6px;background:${bg};color:${txt}">${daysStr}</td>
+              <td style="text-align:right;font-family:monospace;font-size:11px;padding:7px 6px;${borderR};background:#fff7ed">${surpStr}</td>`;
+    }
     if(!d || d.stock === 0) {
       return `<td style="text-align:center;color:#e0e0e0;font-size:10px;padding:7px 4px">—</td>
               <td style="text-align:center;color:#e0e0e0;font-size:10px;padding:7px 4px">—</td>
@@ -2469,17 +2568,40 @@ function renderTransfer() {
 
   document.getElementById('transfer-tbody').innerHTML = filtered.map(row => {
     const p = row.p;
+    const sellPrice = _sellPriceMap[(p.sku||'').toUpperCase()] || 0;
+
+    // Xác định kho nào "dư do giá" (có tồn nhưng giá không phù hợp)
+    const priceWarn = WH_LIST_ALL.filter(wh => !whPriceOK(wh, sellPrice) && (row.whs[wh]?.stock||0) > 0);
+
     const rowBorder = row.action==='URGENT' ? 'border-left:3px solid #dc2626'
                     : row.action==='BUY'    ? 'border-left:3px solid #f59e0b'
                     : row.action==='MOVE'   ? 'border-left:3px solid #2563eb'
                     : 'border-left:3px solid transparent';
+
+    // Cảnh báo giá bán không phù hợp kho
+    const priceWarnHtml = priceWarn.length > 0
+      ? priceWarn.map(wh => {
+          const rule = wh === 'Upbase SMN' ? '< 150k' : '≥ 150k';
+          return `<div style="font-size:10px;color:#c2410c;margin-bottom:2px">⚠ <b>${WH_SHORT[wh]||wh}</b> chỉ nhận SP ${rule}</div>`;
+        }).join('')
+      : '';
+
     const sugg = row.suggestions.map(s => {
       if(s.type==='MOVE') return `<div style="font-size:11px;margin-bottom:2px;color:#1d4ed8">🔄 <b>${WH_SHORT[s.from]||s.from} → ${WH_SHORT[s.to]||s.to}</b>: ${s.qty.toLocaleString('vi')} sp</div>`;
       if(s.type==='BUY') return `<div style="font-size:11px;margin-bottom:2px;color:${row.action==='URGENT'?'#dc2626':'#d97706'}">${row.action==='URGENT'?'🔴':'🛒'} Nhập thêm: <b>${s.qty.toLocaleString('vi')} sp</b></div>`;
     }).join('') || '<span style="color:#16a34a;font-size:11px">✅ Đủ hàng</span>';
+
     const nameSafe = p.name.replace(/'/g,"\\'");
     const isSelected = TF.selected.has(p.sku);
-    const rowBg = isSelected ? 'background:#eff6ff;' : '';
+    const rowBg = isSelected ? 'background:#eff6ff;' : (priceWarn.length > 0 ? 'background:#fffbeb;' : '');
+
+    // Nhãn giá bán + badge phân loại kho
+    const priceTag = sellPrice > 0
+      ? (sellPrice >= PRICE_THRESHOLD
+          ? `<span style="font-size:9px;background:#ede9fe;color:#6d28d9;border-radius:3px;padding:1px 4px;margin-left:3px">≥150k</span>`
+          : `<span style="font-size:9px;background:#dcfce7;color:#15803d;border-radius:3px;padding:1px 4px;margin-left:3px">&lt;150k</span>`)
+      : '';
+
     return `<tr style="border-bottom:1px solid #f0efeb;${rowBorder}${rowBg}">
       <td style="padding:0 6px;text-align:center;border-right:1px solid #e5e5e0;vertical-align:middle">
         <input type="checkbox" ${isSelected?'checked':''} style="cursor:pointer;width:15px;height:15px;accent-color:#2563eb"
@@ -2489,9 +2611,12 @@ function renderTransfer() {
         ${p.sku}
         <div style="margin-top:2px">${_wlBtnHtml(p.sku)}</div>
       </td>
-      <td style="padding:8px 8px;font-size:12px;font-weight:500;border-right:2px solid #e5e5e0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.name}">${p.name}</div></td>
-      ${WH_LIST_ALL.map(wh => whCols4(row.whs[wh], wh)).join('')}
-      <td style="padding:8px 10px;border-right:1px solid #e5e5e0">${sugg}</td>
+      <td style="padding:8px 8px;font-size:12px;font-weight:500;border-right:1px solid #e5e5e0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.name}">${p.name}</div></td>
+      <td style="padding:8px 8px;text-align:right;font-family:monospace;font-size:11px;white-space:nowrap;border-right:2px solid #e5e5e0;background:#faf5ff">
+        ${sellPrice > 0 ? `<span style="color:#6d28d9;font-weight:600">${fmtVND(sellPrice)}</span>${priceTag}` : '<span style="color:#bbb">—</span>'}
+      </td>
+      ${WH_LIST_ALL.map(wh => whCols4(row.whs[wh], wh, whPriceOK(wh, sellPrice))).join('')}
+      <td style="padding:8px 10px;border-right:1px solid #e5e5e0">${priceWarnHtml}${sugg}</td>
       <td style="padding:6px 8px;vertical-align:middle">${getTransferNoteBtn(p.sku, nameSafe)}</td>
     </tr>`;
   }).join('');
@@ -6031,7 +6156,6 @@ function renderSalesCompare() {
 // ── THỐNG KÊ TỒN DƯ NHANH (hiển thị ngoài trang tổng quan) ──────────────────
 function renderSurplusSummary(data) {
   const el = document.getElementById('ov-surplus-summary');
-  if (!el) return;
 
   const TARGET = S.targetDays;
   let ex_count=0, ex_qty=0, ex_value=0;
@@ -6053,11 +6177,42 @@ function renderSurplusSummary(data) {
   });
 
   const totalStock = data.reduce((a,p) => a + p.total_stock, 0);
+  const totalValue = data.reduce((a,p) => a + getCost(p.sku) * p.total_stock, 0);
+  const totalSkus  = data.length;
+
+  // Ngày tồn kho = Giá trị tồn / (Σ giá vốn × tốc độ bán/ngày)
+  // Công thức DIO (Days Inventory Outstanding) theo giá vốn
+  const totalDailyCOGS = data.reduce((a,p) => a + getCost(p.sku) * (p.total_avg||0), 0);
+  const avgDays = totalDailyCOGS > 0 ? Math.round(totalValue / totalDailyCOGS) : null;
+
   const exPct = totalStock > 0 ? Math.round(ex_qty / totalStock * 100) : 0;
   const nsPct = totalStock > 0 ? Math.round(ns_qty / totalStock * 100) : 0;
 
-  const totalValue = data.reduce((a,p) => a + getCost(p.sku) * p.total_stock, 0);
-  const totalSkus  = data.length;
+  // ── Top KPI bar (luôn hiện ở đầu trang, mọi tab) ──
+  const topBar = document.getElementById('top-kpi-bar');
+  if (topBar) {
+    const mkTop = (icon, label, val, sub, borderColor, bg, textColor) =>
+      `<div style="background:${bg};border:1px solid ${borderColor}55;border-left:4px solid ${borderColor};border-radius:8px;padding:9px 12px;min-width:0">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:${borderColor};margin-bottom:3px">${icon} ${label}</div>
+        <div style="font-size:18px;font-weight:800;font-family:monospace;color:${textColor||borderColor};line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${val}</div>
+        <div style="font-size:10px;color:#888;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${sub}</div>
+      </div>`;
+    const daysColor = avgDays === null ? '#9ca3af' : avgDays > 45 ? '#d97706' : avgDays > 20 ? '#16a34a' : '#dc2626';
+    topBar.innerHTML =
+      mkTop('📦','Tổng SKU',     totalSkus,                                           'SKU đang theo dõi',    '#0284c7','#f0f9ff') +
+      mkTop('📦','Tổng tồn',     totalStock.toLocaleString('vi'),                      'sản phẩm',             '#0284c7','#f0f9ff') +
+      mkTop('💰','Giá trị tồn',  totalValue>0?fmtVND(totalValue):'—',                 'theo giá vốn',         '#7c3aed','#f5f3ff') +
+      mkTop('📅','Ngày tồn kho', avgDays !== null ? avgDays + ' ngày' : '—',
+        avgDays !== null ? (avgDays > TARGET ? `⚠ Vượt mức ${TARGET}N` : `✓ Trong mức ${TARGET}N`) : 'Chưa có dữ liệu',
+        daysColor, avgDays !== null && avgDays > TARGET ? '#fffbeb' : '#f0fdf4', daysColor) +
+      `<div style="display:flex;align-items:center;justify-content:center;color:#ddd;font-size:18px">|</div>` +
+      mkTop('🔴','Vượt >' + TARGET + 'N · SKU', ex_count,
+        `${totalSkus>0?Math.round(ex_count/totalSkus*100):0}% tổng SKU · ${fmtVND(ex_value)}`,
+        '#d97706','#fffbeb') +
+      mkTop('⚫','Không DS · SKU', ns_count,
+        `SL: ${ns_qty.toLocaleString('vi')} sp · ${nsPct}% tồn`,
+        '#dc2626','#fef2f2');
+  }
 
   const kpiCard = (bg, border, label, val, sub, subColor) =>
     `<div style="background:${bg};border:1px solid ${border};border-top:3px solid ${subColor};border-radius:10px;padding:12px 14px">
@@ -6942,7 +7097,16 @@ async function _doSyncInner(btn, detailEl) {
 
   if(built.length>0){
     // Cập nhật live sales (11 SKU top từ sheet tháng)
-    if(salesLoaded){ Object.assign(SALES_AVG,newSalesAvg); Object.assign(SALES_HIST,newSalesHist); }
+    if(salesLoaded){
+      // Xóa SALES_AVG cũ của non-static SKU trước khi ghi mới
+      // (tránh giá trị phình từ sync cũ tồn tại mãi cho SP không còn có doanh số)
+      const _staticSet44 = new Set((SALES_COMPARE_DATA?.skus||[]).flatMap(s=>[s.sku,(s.sku||'').toUpperCase(),(s.sku||'').toLowerCase()]));
+      Object.keys(SALES_AVG).forEach(sku => {
+        if (!_staticSet44.has(sku)) delete SALES_AVG[sku];
+      });
+      Object.assign(SALES_AVG, newSalesAvg);
+      Object.assign(SALES_HIST, newSalesHist);
+    }
     // Lấp đầy SALES_AVG cho 44 SKU từ SALES_COMPARE_DATA (bỏ qua SKU đã có live data)
     initSalesAvgFromStaticData(salesLoaded ? new Set(Object.keys(newSalesAvg)) : null);
     // Bổ sung SALES_AVG cho các SKU ngoài danh sách 44 (vd VTT0241) từ anan_monthly_sales
@@ -6955,16 +7119,25 @@ async function _doSyncInner(btn, detailEl) {
         `${_n.getMonth()===0?_n.getFullYear()-1:_n.getFullYear()}-${String(_n.getMonth()===0?12:_n.getMonth()).padStart(2,'0')}`
       ];
       const _skuRates = {};
+      const _curMK = _keys[0];
+      const _curD  = _n.getDate();
       _keys.forEach(k => {
         const e = _msAll[k];
         if (!e || !e.skuTotals || !e.daysDone) return;
+        // safeDays: tránh chia cho daysDone=1 bị lỗi từ cache cũ
+        const rawDays = e.daysDone || 1;
+        const safeDays = k === _curMK ? Math.max(rawDays, _curD) : Math.max(rawDays, 28);
         Object.entries(e.skuTotals).forEach(([sku, qty]) => {
           if (!_skuRates[sku]) _skuRates[sku] = [];
-          if (qty > 0) _skuRates[sku].push(+(qty / e.daysDone).toFixed(1));
+          if (qty > 0) _skuRates[sku].push(+(qty / safeDays).toFixed(1));
         });
       });
+      // Tập SKU static (44 SKU cứng) — bảo vệ, không ghi đè
+      const _staticSkus44 = new Set((SALES_COMPARE_DATA?.skus||[]).flatMap(s=>[s.sku,(s.sku||'').toUpperCase(),(s.sku||'').toLowerCase()]));
       Object.entries(_skuRates).forEach(([sku, rates]) => {
-        // Chỉ bổ sung nếu chưa có (không ghi đè dữ liệu live từ parseSalesCSV hoặc static 44 SKU)
+        // Bảo vệ 44 SKU static; ghi đè mọi SKU khác (kể cả giá trị parseSalesCSV cũ bị lỗi)
+        if (_staticSkus44.has(sku) || _staticSkus44.has(sku.toUpperCase()) || _staticSkus44.has(sku.toLowerCase())) return;
+        // Chỉ bổ sung nếu parseSalesCSV không có giá trị live cho SKU này
         if (SALES_AVG[sku] || SALES_AVG[sku.toUpperCase()] || SALES_AVG[sku.toLowerCase()]) return;
         if (!rates.length) return;
         const sorted = [...rates].sort((a,b)=>a-b);
